@@ -1,71 +1,96 @@
 <?php
 
-return array(
+return [
 
-    'undeployable' 		=> '<strong>Warning: </strong> This asset has been marked as currently undeployable.
-                        If this status has changed, please update the asset status.',
-    'does_not_exist' 	=> 'Asset does not exist.',
-    'does_not_exist_or_not_requestable' => 'Nice try. That asset does not exist or is not requestable.',
-    'assoc_users'	 	=> 'This asset is currently checked out to a user and cannot be deleted. Please check the asset in first, and then try deleting again. ',
+    'undeployable' 		=> '<strong>Warning: </strong> This asset has been marked as currently undeployable. If this status has changed, please update the asset status.',
+    'does_not_exist' 	=> 'Tillgång existerar inte.',
+    'does_not_exist_var'=> 'Asset with tag :asset_tag not found.',
+    'no_tag' 	        => 'No asset tag provided.',
+    'does_not_exist_or_not_requestable' => 'Den tillgången finns inte eller är inte önskvärd.',
+    'assoc_users'	 	=> 'Denna tillgång kontrolleras för närvarande till en användare och kan inte raderas. Kontrollera tillgången först och försök sedan radera igen.',
+    'warning_audit_date_mismatch' 	=> 'This asset\'s next audit date (:next_audit_date) is before the last audit date (:last_audit_date). Please update the next audit date.',
 
-    'create' => array(
-        'error'   		=> 'Asset was not created, please try again. :(',
-        'success' 		=> 'Asset created successfully. :)'
-    ),
+    'create' => [
+        'error'   		=> 'Tillgången skapades inte, försök igen. :(',
+        'success' 		=> 'Asset skapades framgångsrikt. :)',
+        'success_linked' => 'Tillgången med taggen :tag har skapats. <strong><a href=":link" style="color: white;">Klicka här för att se</a></strong>.',
+    ],
 
-    'update' => array(
-        'error'   			=> 'Asset was not updated, please try again',
-        'success' 			=> 'Asset updated successfully.',
-        'nothing_updated'	=>  'No fields were selected, so nothing was updated.',
-    ),
+    'update' => [
+        'error'   			=> 'Tillgången var inte uppdaterad, försök igen',
+        'success' 			=> 'Asset uppdaterad framgångsrikt.',
+        'encrypted_warning' => 'Tillgången uppdaterades framgångsrikt, men krypterade anpassade fält berodde inte på behörigheter',
+        'nothing_updated'	=>  'Inga fält valdes, så ingenting uppdaterades.',
+        'no_assets_selected'  =>  'Inga tillgångar valdes, så ingenting uppdaterades.',
+        'assets_do_not_exist_or_are_invalid' => 'Valda tillgångar kan inte uppdateras.',
+    ],
 
-    'restore' => array(
-        'error'   		=> 'Asset was not restored, please try again',
-        'success' 		=> 'Asset restored successfully.'
-    ),
+    'restore' => [
+        'error'   		=> 'Tillgången återställdes inte, försök igen',
+        'success' 		=> 'Tillgången återställs framgångsrikt.',
+        'bulk_success' 		=> 'Återställning av tillgång lyckades.',
+        'nothing_updated'   => 'Inga tillgångar valdes, så ingenting återställdes.', 
+    ],
 
-    'deletefile' => array(
-        'error'   => 'File not deleted. Please try again.',
-        'success' => 'File successfully deleted.',
-    ),
-
-    'upload' => array(
-        'error'   => 'File(s) not uploaded. Please try again.',
-        'success' => 'File(s) successfully uploaded.',
-        'nofiles' => 'You did not select any files for upload, or the file you are trying to upload is too large',
-        'invalidfiles' => 'One or more of your files is too large or is a filetype that is not allowed. Allowed filetypes are png, gif, jpg, doc, docx, pdf, and txt.',
-    ),
-
-    'import' => array(
-        'error'         => 'Some Items did not import Correctly.',
-        'errorDetail'   => 'The Following Items were not imported because of errors.',
-        'success'       => "Your File has been imported",
-    ),
+    'audit' => [
+        'error'   		=> 'Asset audit unsuccessful: :error ',
+        'success' 		=> 'Inventeringen av tillgången har loggats.',
+    ],
 
 
-    'delete' => array(
-        'confirm'   	=> 'Are you sure you wish to delete this asset?',
-        'error'   		=> 'There was an issue deleting the asset. Please try again.',
-        'success' 		=> 'The asset was deleted successfully.'
-    ),
+    'deletefile' => [
+        'error'   => 'Filen har inte tagits bort. Var god försök igen.',
+        'success' => 'Filen har tagits bort.',
+    ],
 
-    'checkout' => array(
-        'error'   		=> 'Asset was not checked out, please try again',
-        'success' 		=> 'Asset checked out successfully.',
-        'user_does_not_exist' => 'That user is invalid. Please try again.'
-    ),
+    'upload' => [
+        'error'   => 'Fil (er) inte uppladdade. Var god försök igen.',
+        'success' => 'Filer som har laddats upp.',
+        'nofiles' => 'Du valde inte några filer för uppladdning, eller filen du försöker ladda upp är för stor',
+        'invalidfiles' => 'En eller flera av dina filer är för stora eller är en filtyp som inte är tillåten. Tillåtna filtyper är png, gif, jpg, doc, docx, pdf och txt.',
+    ],
 
-    'checkin' => array(
-        'error'   		=> 'Asset was not checked in, please try again',
-        'success' 		=> 'Asset checked in successfully.',
-        'user_does_not_exist' => 'That user is invalid. Please try again.',
-        'already_checked_in'  => 'That asset is already checked in.',
+    'import' => [
+        'import_button'         => 'Process Import',
+        'error'                 => 'Vissa objekt importerades inte korrekt.',
+        'errorDetail'           => 'Följande objekt importerades inte på grund av fel.',
+        'success'               => 'Din fil har importerats',
+        'file_delete_success'   => 'Din fil har tagits bort',
+        'file_delete_error'      => 'Filen kunde inte raderas',
+        'file_missing' => 'Den valda filen saknas',
+        'file_already_deleted' => 'The file selected was already deleted',
+        'header_row_has_malformed_characters' => 'Ett eller flera attribut i rubrikraden innehåller felaktigt formatterade UTF-8-tecken',
+        'content_row_has_malformed_characters' => 'Ett eller flera attribut i den första raden av innehållet innehåller felaktigt formatterade UTF-8-tecken',
+    ],
 
-    ),
 
-    'requests' => array(
-        'error'   		=> 'Asset was not requested, please try again',
-        'success' 		=> 'Asset requested successfully.',
-    )
+    'delete' => [
+        'confirm'   	=> 'Är du säker på att du vill radera den här tillgången?',
+        'error'   		=> 'Det gick inte att ta bort tillgången. Var god försök igen.',
+        'nothing_updated'   => 'Inga tillgångar valdes, så ingenting togs bort.',
+        'success' 		=> 'Tillgången raderades framgångsrikt.',
+    ],
 
-);
+    'checkout' => [
+        'error'   		=> 'Tillgången utcheckades inte, försök igen',
+        'success' 		=> 'Tillgången checkas ut framgångsrikt.',
+        'user_does_not_exist' => 'Den användaren är ogiltig. Var god försök igen.',
+        'not_available' => 'Den tillgången är inte tillgänglig för kassan!',
+        'no_assets_selected' => 'Du måste välja minst en tillgång från listan',
+    ],
+
+    'checkin' => [
+        'error'   		=> 'Tillgången kontrollerades inte, försök igen',
+        'success' 		=> 'Asset kontrolleras framgångsrikt.',
+        'user_does_not_exist' => 'Den användaren är ogiltig. Var god försök igen.',
+        'already_checked_in'  => 'Den tillgången är redan incheckad.',
+
+    ],
+
+    'requests' => [
+        'error'   		=> 'Tillgången begärdes inte, försök igen',
+        'success' 		=> 'Tillgången begärdes framgångsrikt.',
+        'canceled'      => 'Checkout förfrågan har avbrutits',
+    ],
+
+];

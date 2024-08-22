@@ -1,91 +1,51 @@
 <?php
+
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\AdminController;
-use App\Models\Actionlog;
-use View;
-use Auth;
-use Redirect;
-use App\Models\Asset;
-use App\Models\Company;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Http\RedirectResponse;
+use \Illuminate\Contracts\View\View;
+
 
 /**
  * This controller handles all actions related to the Admin Dashboard
  * for the Snipe-IT Asset Management application.
  *
- * @version    v1.0
+ * @author A. Gianotto <snipe@snipe.net>
+ * @version v1.0
  */
 class DashboardController extends Controller
 {
     /**
-    * Check authorization and display admin dashboard, otherwise display
-    * the user's checked-out assets.
-    *
-    * @author [A. Gianotto] [<snipe@snipe.net>]
-    * @since [v1.0]
-    * @return View
-    */
-    public function getIndex()
+     * Check authorization and display admin dashboard, otherwise display
+     * the user's checked-out assets.
+     *
+     * @author [A. Gianotto] [<snipe@snipe.net>]
+     * @since [v1.0]
+     */
+    public function index() : View | RedirectResponse
     {
         // Show the page
-        if (Auth::user()->hasAccess('admin')) {
+        if (auth()->user()->hasAccess('admin')) {
+            $asset_stats = null;
 
-            $recent_activity = Actionlog::orderBy('created_at', 'DESC')
-                ->with('accessorylog', 'consumablelog', 'licenselog', 'assetlog', 'adminlog', 'userlog', 'componentlog')
-                ->take(30)
-                ->get();
+            $counts['asset'] = \App\Models\Asset::count();
+            $counts['accessory'] = \App\Models\Accessory::count();
+            $counts['license'] = \App\Models\License::assetcount();
+            $counts['consumable'] = \App\Models\Consumable::count();
+            $counts['component'] = \App\Models\Component::count();
+            $counts['user'] = \App\Models\Company::scopeCompanyables(auth()->user())->count();
+            $counts['grand_total'] = $counts['asset'] + $counts['accessory'] + $counts['license'] + $counts['consumable'];
 
-
-            $asset_stats['total'] = Asset::Hardware()->count();
-
-            $asset_stats['rtd']['total'] = Asset::Hardware()->RTD()->count();
-
-            if ($asset_stats['rtd']['total'] > 0) {
-                $asset_stats['rtd']['percent'] = round(($asset_stats['rtd']['total']/$asset_stats['total']) * 100);
-            } else {
-                $asset_stats['rtd']['percent'] = 0;
+            if ((! file_exists(storage_path().'/oauth-private.key')) || (! file_exists(storage_path().'/oauth-public.key'))) {
+                Artisan::call('migrate', ['--force' => true]);
+                \Artisan::call('passport:install');
             }
 
-
-            $asset_stats['pending']['total'] = Asset::Hardware()->Pending()->count();
-
-            if ($asset_stats['pending']['total'] > 0) {
-                $asset_stats['pending']['percent'] = round(($asset_stats['pending']['total']/$asset_stats['total']) * 100);
-            } else {
-                $asset_stats['pending']['percent'] = 0;
-            }
-
-
-            $asset_stats['deployed']['total'] = Asset::Hardware()->Deployed()->count();
-
-            if ($asset_stats['deployed']['total'] > 0) {
-                 $asset_stats['deployed']['percent'] = round(($asset_stats['deployed']['total']/$asset_stats['total']) * 100);
-            } else {
-                $asset_stats['deployed']['percent'] = 0;
-            }
-
-
-            $asset_stats['undeployable']['total'] = Asset::Hardware()->Undeployable()->count();
-
-            if ($asset_stats['undeployable']['total'] > 0) {
-                $asset_stats['undeployable']['percent'] = round(($asset_stats['undeployable']['total']/$asset_stats['total']) * 100);
-            } else {
-                $asset_stats['undeployable']['percent'] = 0;
-            }
-
-            $asset_stats['archived']['total'] = Asset::Hardware()->Archived()->count();
-
-            if ($asset_stats['archived']['total'] > 0) {
-                $asset_stats['archived']['percent'] = round(($asset_stats['archived']['total']/$asset_stats['total']) * 100);
-            } else {
-                $asset_stats['archived']['percent'] = 0;
-            }
-
-
-            return View::make('dashboard')->with('asset_stats', $asset_stats)->with('recent_activity', $recent_activity);
+            return view('dashboard')->with('asset_stats', $asset_stats)->with('counts', $counts);
         } else {
-        // Redirect to the profile page
-            return redirect()->route('view-assets');
+            // Redirect to the profile page
+            return redirect()->intended('account/view-assets');
         }
     }
 }

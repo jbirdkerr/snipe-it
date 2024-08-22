@@ -2,23 +2,27 @@
 
 return array(
 
-    'does_not_exist' => 'Supplier does not exist.',
-    'assoc_users'	 => 'This supplier is currently associated with at least one model and cannot be deleted. Please update your models to no longer reference this supplier and try again. ',
+    'deleted' => 'Proveedor eliminado',
+    'does_not_exist' => 'El proveedor no existe.',
+
 
     'create' => array(
-        'error'   => 'Supplier was not created, please try again.',
-        'success' => 'Supplier created successfully.'
+        'error'   => 'El proveedor no fue creado, por favor inténtelo de nuevo.',
+        'success' => 'Proveedor creado con éxito.'
     ),
 
     'update' => array(
-        'error'   => 'Supplier was not updated, please try again',
-        'success' => 'Supplier updated successfully.'
+        'error'   => 'El proveedor no fue actualizado, por favor inténtelo de nuevo',
+        'success' => 'Proveedor actualizado correctamente.'
     ),
 
     'delete' => array(
-        'confirm'   => 'Are you sure you wish to delete this supplier?',
-        'error'   => 'There was an issue deleting the supplier. Please try again.',
-        'success' => 'Supplier was deleted successfully.'
+        'confirm'   => '¿Está seguro de que desea eliminar este proveedor?',
+        'error'   => 'Hubo un problema al eliminar el proveedor, por favor inténtelo de nuevo.',
+        'success' => 'Proveedor eliminado correctamente.',
+        'assoc_assets'	 => 'Este proveedor está actualmente asociado con :asset_count activo(s) y no puede ser eliminado. Actualice sus activos para que ya no hagan referencia a este proveedor e inténtelo de nuevo. ',
+        'assoc_licenses'	 => 'Este proveedor está asociado actualmente con :licenses_count licences(s) y no puede ser eliminado. Actualice sus licencias para que ya no hagan referencia a este proveedor e inténtelo de nuevo. ',
+        'assoc_maintenances'	 => 'Este proveedor está actualmente asociado con :asset_maintainances_count mantenimiento(s) de activo(s) y no puede ser eliminado. Por favor, actualice el mantenimiento de sus activos para no hacer referencia a este proveedor y vuelva a intentarlo. ',
     )
 
 );

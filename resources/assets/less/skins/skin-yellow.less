@@ -1,10 +1,9 @@
 /*
  * Skin: Yellow
- * ------------
+ * ----------
  */
-
-@import "../../bootstrap-less/mixins.less";
-@import "../../bootstrap-less/variables.less";
+@import "../bootstrap-less/mixins.less";
+@import "../bootstrap-less/variables.less";
 @import "../variables.less";
 @import "../mixins.less";
 
@@ -12,23 +11,23 @@
   //Navbar
   .main-header {
     .navbar {
-      .navbar-variant(@yellow; #fff);
+      .navbar-variant(#FBCC34);
       .sidebar-toggle {
-        color: #fff;
+        color: #000;
         &:hover {
-          background-color: darken(@yellow, 5%);
+          background-color: darken(#FBCC34, 5%);
         }
       }
-      @media(max-width: @screen-header-collapse) {
+      @media (max-width: @screen-header-collapse) {
         .dropdown-menu {
           li {
             &.divider {
-              background-color: rgba(255,255,255,0.1);
+              background-color: rgba(255, 255, 255, 0.1);
             }
             a {
-              color: #fff;
+              color: #333;
               &:hover {
-                background: darken(@yellow, 5%);
+                background: darken(#FBCC34, 5%);
               }
             }
           }
@@ -36,12 +35,9 @@
       }
     }
     //Logo
-    .logo {
-      .logo-variant(darken(@yellow, 5%));
-    }
 
     li.user-header {
-      background-color: @yellow;
+      background-color: #FBCC34;
     }
   }
 
@@ -51,5 +47,101 @@
   }
 
   //Create the sidebar skin
-  .skin-dark-sidebar(@yellow);
+  .skin-dark-sidebar(#FBCC34);
+}
+
+.skin-yellow.layout-top-nav .main-header > .logo {
+  .logo-variant {
+    color: #413F42;
+    background-color: none;
+  }
+}
+
+
+
+.btn, .btn:hover {
+
+
+  &.btn-primary, .btn-primary:link {
+    background-color: darken(#FBCC34, 10%);
+    border-color: darken(#FBCC34, 20%);
+    color: var(--nav-link);
+  }
+
+
+  &a.btn-primary:hover {
+    background-color: darken(#FBCC34, 20%);
+    border-color: darken(#FBCC34, 20%);
+    color: var(--nav-link);
+  }
+
+  &.btn-white:link {
+    background-color: darken(#FBCC34, 10%);
+    color: var(--nav-link);
+  }
+
+  &.btn-white:hover {
+    background-color: darken(#FBCC34, 30%);
+    color: var(--nav-link);
+  }
+}
+a.btn-info:link, a.btn-warning:link, a.btn-danger:link{
+  color: #FFF;
+}
+&a.btn-info:visited, a.btn-warning:visited, a.btn-danger:visited{
+  color: #FFF;
+}
+
+a {
+  color: var(--link);
+  &:hover {
+    color: var(--hover-link);
+  }
+  &:visited {
+    color: var(--visited-link);
+  }
+}
+
+.text-primary {
+  color: darken(#FBCC34, 20%);
+}
+
+:root {
+  --button-default: darken(#FBCC34, 15%);
+  --button-primary: darken(#FBCC34, 25%);
+  --button-hover: darken(#FBCC34, 30%);
+  --header: #FBCC34; /* Use same as Header picker */
+  --text-main: #BBB;
+  --text-sub: #9b9b9b;
+  --link: lighten( #413F42, 10%); /* Use same as Header picker, lighten by 70% */
+  --visited-link: lighten(#413F42, 20%); /* Use same as Header picker, lighten by 70% */
+  --hover-link: lighten(#413F42, 45%); /* Use same as Header picker, lighten by 70% */
+  --nav-link: #222; /* Use same as Header picker */
+  --light-link: #fff; /* Use same as Header picker */
+}
+
+.fixed-table-container tbody .selected td {
+  background-color: #fff8af;
+}
+.select2-container--default .select2-selection--multiple .select2-selection__choice {
+  background-color: #FBCC34;
+}
+
+.search-highlight, .search-highlight:hover {
+  background-color: #e9d15b;
+}
+.thead, .navbar-nav>li>a:link {
+  color: var(--nav-link);
+}
+.navbar-nav>li>a:visited {
+  color: var(--nav-link);
+}
+&:hover{
+  color: var(--nav-link);
+}
+.skin-yellow .main-header .navbar .nav > li > a {
+  color: #413F42;
+}
+.far fa-life-ring{
+  color:var(--link);
 }

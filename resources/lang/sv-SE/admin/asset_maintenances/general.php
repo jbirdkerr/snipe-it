@@ -1,11 +1,16 @@
 <?php
 
     return [
-        'asset_maintenances' => 'Asset Maintenances',
-        'edit'               => 'Edit Asset Maintenance',
-        'delete'             => 'Delete Asset Maintenance',
-        'view'               => 'View Asset Maintenance Details',
+        'asset_maintenances' => 'Underhåll av tillgångar',
+        'edit'               => 'Redigera underhåll av tillgångar',
+        'delete'             => 'Radera underhåll av tillgång',
+        'view'               => 'Visa detaljer för underhåll av tillgångar',
         'repair'             => 'Reparera',
         'maintenance'        => 'Underhåll',
-        'upgrade'            => 'Uppgradera'
+        'upgrade'            => 'Uppgradera',
+        'calibration'        => 'Kalibrering',
+        'software_support'   => 'Programvarusupport',
+        'hardware_support'   => 'Hårdvarusupport',
+        'configuration_change'   => 'Konfigurationsändring',
+        'pat_test'           => 'PAT-test',
     ];

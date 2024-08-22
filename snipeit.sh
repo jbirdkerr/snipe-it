@@ -1,607 +1,960 @@
 #!/bin/bash
+#/ Usage: snipeit.sh [-vh]
+#/
+#/ Install Snipe-IT open source asset management.
+#/
+#/ OPTIONS:
+#/   -v | --verbose    Enable verbose output.
+#/   -h | --help       Show this message.
 
 ######################################################
 #           Snipe-It Install Script                  #
 #          Script created by Mike Tucker             #
 #            mtucker6784@gmail.com                   #
-# This script is just to help streamline the         #
-# install process for Debian and CentOS              #
-# based distributions. I assume you will be          #
-# installing as a subdomain on a fresh OS install.   #
-# Right now I'm not going to worry about SMTP setup  #
 #                                                    #
 # Feel free to modify, but please give               #
 # credit where it's due. Thanks!                     #
+#                                                    #
+#         Updated Snipe-IT Install Script            #
+#          Update created by Aaron Myers             #
+# Change log                                         #
+# * add support for php8.2, awslinux2, alma 8/9      #
+# * fix rocky8/9 support
+# * remove Fedora support because short timelines    #
+# * Added support for CentOS/Rocky 9                 #
+# * Fixed CentOS 7 repository for PHP 7.4            #
+# * Removed support for CentOS 6                     #
+# * Removed support for Ubuntu < 20.04               #
+# * Removed support for Ubuntu 21 (EOL)              #
+# * Removed support for Debian < 9 (EOL)             #
+# * Fixed permissions issue with Laravel cache       #
+# * Moved OS check to start of script                #
+# * Fixed timezone awk                               #
+# * Minor display and logging improvements           #
 ######################################################
+
+# Parse arguments
+while true; do
+  case "$1" in
+    -h|--help)
+      show_help=true
+      shift
+      ;;
+    -v|--verbose)
+      set -x
+      verbose=true
+      shift
+      ;;
+    -*)
+      echo "Error: invalid argument: '$1'" 1>&2
+      exit 1
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+print_usage () {
+  grep '^#/' <"$0" | cut -c 4-
+  exit 1
+}
+
+if [ -n "$show_help" ]; then
+  print_usage
+else
+  for x in "$@"; do
+    if [ "$x" = "--help" ] || [ "$x" = "-h" ]; then
+      print_usage
+    fi
+  done
+fi
 
 # ensure running as root
 if [ "$(id -u)" != "0" ]; then
-  exec sudo "$0" "$@"
+    #Debian doesnt have sudo if root has a password.
+    if ! hash sudo 2>/dev/null; then
+        exec su -c "$0" "$@"
+    else
+        exec sudo "$0" "$@"
+    fi
 fi
-#First things first, let's set some variables and find our distro.
+
 clear
 
-name="snipeit"
-si="Snipe-IT"
-hostname="$(hostname)"
-fqdn="$(hostname --fqdn)"
-ans=default
-hosts=/etc/hosts
-file=master.zip
-tmp=/tmp/$name
-fileName=snipe-it-master
+readonly APP_USER="snipeitapp"
+readonly APP_NAME="snipeit"
+readonly APP_PATH="/var/www/html/$APP_NAME"
+readonly APP_LOG="/var/log/snipeit-install.log"
+readonly COMPOSER_PATH="/home/$APP_USER"
 
-rm -rf $tmp/
-mkdir $tmp
+progress () {
+  spin[0]="-"
+  spin[1]="\\"
+  spin[2]="|"
+  spin[3]="/"
 
-function isinstalled {
-  if yum list installed "$@" >/dev/null 2>&1; then
-    true
+  echo -n " "
+  while kill -0 "$pid" > /dev/null 2>&1; do
+    for i in "${spin[@]}"; do
+      echo -ne "\\b$i"
+      sleep .3
+    done
+  done
+  echo ""
+}
+
+log () {
+  if [ -n "$verbose" ]; then
+    eval "$@" |& tee -a /var/log/snipeit-install.log
   else
-    false
+    eval "$@" |& tee -a /var/log/snipeit-install.log >/dev/null 2>&1
   fi
 }
 
-if [ -f /etc/lsb-release ]; then
-    distro="$(lsb_release -s -i )"
-    version="$(lsb_release -s -r)"
+eol () {
+  if [[ "$distro" == "Ubuntu" ]] || [[ "$distro" == "Debian" ]] || [[ "$distro" == "Raspbian" ]] ; then
+    echo -e "\e[31m** \n $distro version $version ($codename) has reached end of life (EOL) and is not supported\n**\e[0m"
+  else
+    echo "$distro version $version has reached end of life (EOL) and is not supported"
+  fi
+}
+
+install_packages () {
+  case $distro in
+    Ubuntu|Debian)
+      for p in $PACKAGES; do
+        if dpkg -s "$p" >/dev/null 2>&1; then
+          echo "  * $p already installed"
+        else
+          echo "  * Installing $p"
+          log "DEBIAN_FRONTEND=noninteractive apt-get install -y $p"
+        fi
+      done;
+      ;;
+    Raspbian)
+      for p in $PACKAGES; do
+        if dpkg -s "$p" >/dev/null 2>&1; then
+          echo "  * $p already installed"
+        else
+          echo "  * Installing $p"
+          log "DEBIAN_FRONTEND=noninteractive apt-get install -y -t buster $p"
+        fi
+      done;
+      ;;
+    Centos)
+      for p in $PACKAGES; do
+        if yum list installed "$p" >/dev/null 2>&1; then
+          echo "  * $p already installed"
+        else
+          echo "  * Installing $p"
+          log "yum -y install $p"
+        fi
+      done;
+      ;;
+  esac
+}
+
+create_virtualhost () {
+  {
+    echo "<VirtualHost *:80>"
+    echo "  <Directory $APP_PATH/public>"
+    echo "      Allow From All"
+    echo "      AllowOverride All"
+    echo "      Options -Indexes"
+    echo "  </Directory>"
+    echo ""
+    echo "  DocumentRoot $APP_PATH/public"
+    echo "  ServerName $fqdn"
+    echo "</VirtualHost>"
+  } >> "$apachefile"
+}
+
+create_user () {
+  echo "* Creating Snipe-IT user."
+
+  if [[ "$distro" == "Ubuntu" ]] || [[ "$distro" == "Debian" ]] || [[ "$distro" == "Raspbian" ]] ; then
+    /usr/sbin/adduser --quiet --disabled-password --gecos 'Snipe-IT User' "$APP_USER"
+    su -c "/usr/sbin/usermod -a -G "$apache_group" "$APP_USER""
+  else
+    adduser "$APP_USER"
+    usermod -a -G "$apache_group" "$APP_USER"
+  fi
+}
+
+run_as_app_user () {
+  if ! hash sudo 2>/dev/null; then
+      su - $APP_USER -c "$@"
+  else
+      sudo -i -u $APP_USER "$@"
+  fi
+}
+
+install_composer () {
+  # https://getcomposer.org/doc/faqs/how-to-install-composer-programmatically.md
+  EXPECTED_SIGNATURE="$(wget -q -O - https://composer.github.io/installer.sig)"
+
+  if [[ "$distro" == "Debian" ]]; then
+    wget -q -O $COMPOSER_PATH/composer-setup.php https://getcomposer.org/installer && chown $APP_USER:$APP_USER $COMPOSER_PATH/composer-setup.php
+    ACTUAL_SIGNATURE="$(sha384sum $COMPOSER_PATH/composer-setup.php | awk '{ print $1 }')"
+  else
+    run_as_app_user php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+    ACTUAL_SIGNATURE="$(run_as_app_user php -r "echo hash_file('SHA384', 'composer-setup.php');")"
+  fi
+
+  if [ "$EXPECTED_SIGNATURE" != "$ACTUAL_SIGNATURE" ]; then
+    >?&2 echo 'ERROR: Invalid composer installer signature'
+    exit 1
+  fi
+
+  if [[ "$distro" == "Debian" ]]; then
+    run_as_app_user php $COMPOSER_PATH/composer-setup.php
+    run_as_app_user rm $COMPOSER_PATH/composer-setup.php
+  else
+    run_as_app_user php composer-setup.php
+    run_as_app_user rm composer-setup.php
+  fi
+
+  mv "$(eval echo ~$APP_USER)"/composer.phar /usr/local/bin/composer
+}
+
+install_snipeit () {
+  create_user
+  echo "* Creating MariaDB Database/User."
+  mysql -u root --execute="CREATE DATABASE snipeit;CREATE USER snipeit_dbuser@localhost IDENTIFIED BY '$mysqluserpw'; GRANT ALL PRIVILEGES ON snipeit.* TO snipeit_dbuser@localhost;"
+
+  echo -e "\n\n* Cloning Snipe-IT from github to the web directory."
+  log "git clone https://github.com/snipe/snipe-it $APP_PATH" & pid=$!
+  progress
+  pushd $APP_PATH
+  git checkout master
+  popd
+
+  echo "* Configuring .env file."
+  cp "$APP_PATH/.env.example" "$APP_PATH/.env"
+
+  #TODO escape SED delimiter in variables
+  sed -i '1 i\#Created By Snipe-it Installer' "$APP_PATH/.env"
+  sed -i "s|^\\(APP_TIMEZONE=\\).*|\\1$tzone|" "$APP_PATH/.env"
+  sed -i "s|^\\(DB_HOST=\\).*|\\1localhost|" "$APP_PATH/.env"
+  sed -i "s|^\\(DB_DATABASE=\\).*|\\1snipeit|" "$APP_PATH/.env"
+  sed -i "s|^\\(DB_USERNAME=\\).*|\\1snipeit_dbuser|" "$APP_PATH/.env"
+  sed -i "s|^\\(DB_PASSWORD=\\).*|\\1'$mysqluserpw'|" "$APP_PATH/.env"
+  sed -i "s|^\\(APP_URL=\\).*|\\1http://$fqdn|" "$APP_PATH/.env"
+
+  echo "* Installing composer."
+  install_composer
+
+  echo "* Setting permissions."
+  for chmod_dir in "$APP_PATH/storage" "$APP_PATH/public/uploads" "$APP_PATH/bootstrap/cache"; do
+    chmod -R 775 "$chmod_dir"
+  done
+
+  chown -R "$APP_USER":"$apache_group" "$APP_PATH"
+
+  echo "* Running composer."
+  # We specify the path to composer because CentOS lacks /usr/local/bin in $PATH when using sudo
+  if [[ "$distro" == "Debian" ]]; then
+    run_as_app_user /usr/local/bin/composer install --no-dev --prefer-source --working-dir "$APP_PATH"
+  else
+    echo "* This can take 5 minutes or more. Tail $APP_LOG for more full command output." & pid=$!
+    progress
+    log "run_as_app_user /usr/local/bin/composer install --no-dev --prefer-source --working-dir "$APP_PATH""
+  fi
+
+  chgrp -R "$apache_group" "$APP_PATH/vendor"
+
+  echo "* Generating the application key."
+  log "php $APP_PATH/artisan key:generate --force"
+
+  echo "* Artisan Migrate."
+  log "php $APP_PATH/artisan migrate --force"
+
+  echo "* Creating scheduler cron."
+  (echo "* * * * * /usr/bin/php $APP_PATH/artisan schedule:run >> /dev/null 2>&1") | run_as_app_user crontab -
+}
+
+set_firewall () {
+  if [ "$(firewall-cmd --state)" == "running" ]; then
+    echo "* Configuring firewall to allow HTTP traffic only."
+    log "firewall-cmd --zone=public --add-port=http/tcp --permanent"
+    log "firewall-cmd --reload"
+  fi
+}
+
+set_selinux () {
+  #Check if SELinux is enforcing
+  if [ "$(getenforce)" == "Enforcing" ]; then
+    echo "* Configuring SELinux."
+    #Required for ldap integration
+    setsebool -P httpd_can_connect_ldap on
+    #Sets SELinux context type so that scripts running in the web server process are allowed read/write access
+    chcon -R -h -t httpd_sys_rw_content_t "$APP_PATH/storage/"
+    chcon -R -h -t httpd_sys_rw_content_t "$APP_PATH/public/"
+  fi
+}
+
+set_hosts () {
+  echo "* Setting up hosts file."
+  echo >> /etc/hosts "127.0.0.1 $(hostname) $fqdn"
+}
+
+rename_default_vhost () {
+    log "mv /etc/apache2/sites-enabled/000-default.conf /etc/apache2/sites-enabled/111-default.conf"
+    log "mv /etc/apache2/sites-enabled/snipeit.conf /etc/apache2/sites-enabled/000-snipeit.conf"
+}
+
+
+if [[ -f /etc/debian_version || -f /etc/lsb-release ]]; then
+  distro="$(lsb_release -is)"
+  version="$(lsb_release -rs)"
+  codename="$(lsb_release -cs)"
 elif [ -f /etc/os-release ]; then
-    distro="$(. /etc/os-release && echo $ID)"
-    version="$(. /etc/os-release && echo $VERSION_ID)"
-#Order is important here.  If /etc/os-release and /etc/centos-release exist, we're on centos 7.
-#If only /etc/centos-release exist, we're on centos6(or earlier).  Centos-release is less parsable,
-#so lets assume that it's version 6 (Plus, who would be doing a new install of anything on centos5 at this point..)
+  # shellcheck disable=SC1091
+  distro="$(source /etc/os-release && echo "$ID")"
+  # shellcheck disable=SC1091
+  version="$(source /etc/os-release && echo "$VERSION_ID")"
+  #Order is important here.  If /etc/os-release and /etc/centos-release exist, we're on centos 7.
+  #If only /etc/centos-release exist, we're on centos6(or earlier).  Centos-release is less parsable,
+  #so lets assume that it's version 6 (Plus, who would be doing a new install of anything on centos5 at this point..)
+  #/etc/os-release properly detects fedora
 elif [ -f /etc/centos-release ]; then
-	distro="Centos"
-	version="6"
+  distro="centos"
+  version="6"
 else
-    distro="unsupported"
+  distro="unsupported"
 fi
 
-
-echo "
-	   _____       _                  __________
-	  / ___/____  (_)___  ___        /  _/_  __/
-	  \__ \/ __ \/ / __ \/ _ \______ / /  / /
-	 ___/ / / / / / /_/ /  __/_____// /  / /
-	/____/_/ /_/_/ .___/\___/     /___/ /_/
-	            /_/
-"
+echo '
+       _____       _                  __________
+      / ___/____  (_)___  ___        /  _/_  __/
+      \__ \/ __ \/ / __ \/ _ \______ / /  / /
+     ___/ / / / / / /_/ /  __/_____// /  / /
+    /____/_/ /_/_/ .___/\___/     /___/ /_/
+                /_/
+'
 
 echo ""
+echo "  Welcome to Snipe-IT Inventory Installer for CentOS, Rocky, Debian, and Ubuntu!"
 echo ""
-echo "  Welcome to Snipe-IT Inventory Installer for Centos and Debian!"
+echo "  Installation log located: $APP_LOG"
 echo ""
 shopt -s nocasematch
 case $distro in
-        *Ubuntu*)
-                echo "  The installer has detected Ubuntu version $version as the OS."
-                distro=ubuntu
-                ;;
-		*Debian*)
-                echo "  The installer has detected Debian version $version as the OS."
-                distro=debian
-                ;;
-        *centos*|*redhat*)
-                echo "  The installer has detected $distro version $version as the OS."
-                distro=centos
-                ;;
-        *)
-                echo "  The installer was unable to determine your OS. Exiting for safety."
-                exit
-                ;;
+  *ubuntu*)
+    echo "  The installer has detected $distro version $version codename $codename."
+    distro=Ubuntu
+    apache_group=www-data
+    apachefile=/etc/apache2/sites-available/$APP_NAME.conf
+    ;;
+  *raspbian*)
+    echo "  The installer has detected $distro version $version codename $codename."
+    distro=Raspbian
+    apache_group=www-data
+    apachefile=/etc/apache2/sites-available/$APP_NAME.conf
+    ;;
+  *Debian|debian*)
+    echo "  The installer has detected $distro version $version codename $codename."
+    distro=Debian
+    apache_group=www-data
+    apachefile=/etc/apache2/sites-available/$APP_NAME.conf
+    ;;
+  *amzn*|*redhat*|*alma*|*rhel*|*rocky*)
+    echo "  The installer has detected $distro version $version."
+    distro=Centos
+    apache_group=apache
+    apachefile=/etc/httpd/conf.d/$APP_NAME.conf
+    ;;
+  *fedora*)
+    echo "  The installer does not support Fedora"
+    exit 1
+    ;;
+  *)
+    echo "   The installer was unable to determine your OS. Exiting for safety. Exiting for safety."
+    exit 1
+    ;;
 esac
 shopt -u nocasematch
-#Get your FQDN.
 
-echo -n "  Q. What is the FQDN of your server? ($fqdn): "
-read fqdn
-if [ -z "$fqdn" ]; then
-        fqdn="$(hostname --fqdn)"
-fi
-echo "     Setting to $fqdn"
-echo ""
+set_fqdn () {
+   echo -n "  Q. What is the FQDN of your server? ($(hostname --fqdn)): "
+   read -r fqdn
+   if [ -z "$fqdn" ]; then
+     readonly fqdn="$(hostname --fqdn)"
+   fi
+   echo "     Setting to $fqdn"
+   echo ""
+}
 
-#Do you want to set your own passwords, or have me generate random ones?
-until [[ $ans == "yes" ]] || [[ $ans == "no" ]]; do
-echo -n "  Q. Do you want me to automatically create the snipe database user password? (y/n) "
-read setpw
+set_dbpass () {
+   ans=default
+   until [[ $ans == "yes" ]] || [[ $ans == "no" ]]; do
+      echo -n "  Q. Do you want to automatically create the SnipeIT database user password? (y/n) "
+      read -r setpw
 
-case $setpw in
-        [yY] | [yY][Ee][Ss] )
-                mysqluserpw="$(echo `< /dev/urandom tr -dc _A-Za-z-0-9 | head -c16`)"
-                ans="yes"
-                ;;
-        [nN] | [n|N][O|o] )
-                echo -n  "  Q. What do you want your snipeit user password to be?"
-                read -s mysqluserpw
-                echo ""
-				ans="no"
-                ;;
-        *) 		echo "  Invalid answer. Please type y or n"
-                ;;
+      case $setpw in
+         [yY] | [yY][Ee][Ss] )
+         mysqluserpw="$(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c16; echo)"
+         echo ""
+         ans="yes"
+      ;;
+      [nN] | [n|N][O|o] )
+         echo -n  "  Q. What do you want your snipeit user password to be?"
+         read -rs mysqluserpw
+         echo ""
+         ans="no"
+      ;;
+      *)  echo "  Invalid answer. Please type y or n"
+      ;;
+      esac
+   done
+}
+
+case $distro in
+  Debian)
+    if [[ "$version" =~ ^12 ]]; then
+        # Install for Debian 12.x
+        set_fqdn
+        set_dbpass
+        tzone=$(cat /etc/timezone)
+
+        echo "* Adding PHP repository."
+        log "apt-get install -y apt-transport-https lsb-release ca-certificates"
+        log "wget -O /etc/apt/trusted.gpg.d/php.gpg https://packages.sury.org/php/apt.gpg"
+        echo "deb https://packages.sury.org/php/ $codename main" > /etc/apt/sources.list.d/php.list
+
+        echo -n "* Updating installed packages."
+        log "apt-get update && apt-get -y upgrade" & pid=$!
+        progress
+
+        echo "* Installing Apache httpd, PHP, MariaDB and other requirements."
+        PACKAGES="mariadb-server mariadb-client apache2 libapache2-mod-php8.2 php8.2 php8.2-mcrypt php8.2-curl php8.2-mysql php8.2-gd php8.2-ldap php8.2-zip php8.2-mbstring php8.2-xml php8.2-bcmath curl git unzip"
+        install_packages
+
+        echo "* Configuring Apache."
+        create_virtualhost
+        /usr/sbin/a2enmod rewrite
+        /usr/sbin/a2ensite $APP_NAME.conf
+        rename_default_vhost
+
+        set_hosts
+
+        install_snipeit
+
+        echo "* Restarting Apache httpd."
+        /usr/sbin/service apache2 restart
+
+        echo "* Clearing cache and setting final permissions."
+        chmod 777 -R $APP_PATH/storage/framework/cache/
+        run_as_app_user php $APP_PATH/artisan cache:clear
+        chmod 775 -R $APP_PATH/storage/
+
+    elif [[ "$version" =~ ^11 ]]; then
+        # Install for Debian 11.x
+        set_fqdn
+        set_dbpass
+        tzone=$(cat /etc/timezone)
+
+        echo "* Adding PHP repository."
+        log "apt-get install -y apt-transport-https lsb-release ca-certificates"
+        log "wget -O /etc/apt/trusted.gpg.d/php.gpg https://packages.sury.org/php/apt.gpg"
+        echo "deb https://packages.sury.org/php/ $codename main" > /etc/apt/sources.list.d/php.list
+
+        echo -n "* Updating installed packages."
+        log "apt-get update && apt-get -y upgrade" & pid=$!
+        progress
+
+        echo "* Installing Apache httpd, PHP, MariaDB and other requirements."
+        PACKAGES="mariadb-server mariadb-client apache2 libapache2-mod-php8.2 php8.2 php8.2-mcrypt php8.2-curl php8.2-mysql php8.2-gd php8.2-ldap php8.2-zip php8.2-mbstring php8.2-xml php8.2-bcmath curl git unzip"
+        install_packages
+
+        echo "* Configuring Apache."
+        create_virtualhost
+        /usr/sbin/a2enmod rewrite
+        /usr/sbin/a2ensite $APP_NAME.conf
+        rename_default_vhost
+
+        set_hosts
+
+        install_snipeit
+
+        echo "* Restarting Apache httpd."
+        /usr/sbin/service apache2 restart
+
+        echo "* Clearing cache and setting final permissions."
+        chmod 777 -R $APP_PATH/storage/framework/cache/
+        run_as_app_user php $APP_PATH/artisan cache:clear
+        chmod 775 -R $APP_PATH/storage/
+
+    elif [[ "$version" =~ ^10 ]]; then
+        # Install for Debian 10.x
+        set_fqdn
+        set_dbpass
+        tzone=$(cat /etc/timezone)
+
+        echo "* Adding PHP repository."
+        log "apt-get install -y apt-transport-https lsb-release ca-certificates"
+        log "wget -O /etc/apt/trusted.gpg.d/php.gpg https://packages.sury.org/php/apt.gpg"
+        echo "deb https://packages.sury.org/php/ $codename main" > /etc/apt/sources.list.d/php.list
+
+        echo -n "* Updating installed packages."
+        log "apt-get update && apt-get -y upgrade" & pid=$!
+        progress
+
+        echo "* Installing Apache httpd, PHP, MariaDB and other requirements."
+        PACKAGES="mariadb-server mariadb-client apache2 libapache2-mod-php8.2 php8.2 php8.2-mcrypt php8.2-curl php8.2-mysql php8.2-gd php8.2-ldap php8.2-zip php8.2-mbstring php8.2-xml php8.2-bcmath curl git unzip"
+        install_packages
+
+        echo "* Configuring Apache."
+        create_virtualhost
+        /usr/sbin/a2enmod rewrite
+        /usr/sbin/a2ensite $APP_NAME.conf
+        rename_default_vhost
+
+        set_hosts
+
+        install_snipeit
+
+        echo "* Restarting Apache httpd."
+        /usr/sbin/service apache2 restart
+
+        echo "* Clearing cache and setting final permissions."
+        chmod 777 -R $APP_PATH/storage/framework/cache/
+        run_as_app_user php $APP_PATH/artisan cache:clear
+        chmod 775 -R $APP_PATH/storage/
+
+    elif [[ "$version" =~ ^9 ]]; then
+        eol
+        exit 1
+    else
+        echo "Unsupported Debian version. Version found: $version"
+        exit 1
+    fi
+  ;;
+  Ubuntu)
+    if [ "${version//./}" -ge "2304" ]; then
+        # Install for Ubuntu 23.04 and 23.10
+        set_fqdn
+        set_dbpass
+        tzone=$(cat /etc/timezone)
+
+        echo -n "* Updating installed packages."
+        log "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y upgrade" & pid=$!
+        progress
+
+        echo "* Installing Apache httpd, PHP, MariaDB and other requirements."
+        PACKAGES="cron mariadb-server mariadb-client apache2 libapache2-mod-php php php-mcrypt php-curl php-mysql php-gd php-ldap php-zip php-mbstring php-xml php-bcmath curl git unzip"
+        install_packages
+
+        echo "* Configuring Apache."
+        create_virtualhost
+        log "phpenmod mcrypt"
+        log "phpenmod mbstring"
+        log "a2enmod rewrite"
+        log "a2ensite $APP_NAME.conf"
+        rename_default_vhost
+
+        set_hosts
+
+        echo "* Starting MariaDB."
+        log "systemctl start mariadb.service"
+
+        install_snipeit
+
+        echo "* Restarting Apache httpd."
+        log "systemctl restart apache2"
+
+        echo "* Clearing cache and setting final permissions."
+        chmod 777 -R $APP_PATH/storage/framework/cache/
+        log "run_as_app_user php $APP_PATH/artisan cache:clear"
+        chmod 775 -R $APP_PATH/storage/
+    elif [ "${version//./}" -eq "2204" ]; then
+        # Install for Ubuntu 22.04
+        set_fqdn
+        set_dbpass
+        tzone=$(cat /etc/timezone)
+
+        echo "* Set up Ondrej PHP repository"
+        echo "# Odrej PHP repo for ability to choose non-distro PHP versions" > /etc/apt/sources.list.d/ppa_ondrej_php_$codename.list
+        echo "deb http://ppa.launchpad.net/ondrej/php/ubuntu $codename main" >> /etc/apt/sources.list.d/ppa_ondrej_php_$codename.list
+        sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 4F4EA0AAE5267A6C
+
+        echo -n "* Updating installed packages."
+        log "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y upgrade" & pid=$!
+        progress
+
+        echo "* Installing Apache httpd, PHP, MariaDB and other requirements."
+        PACKAGES="cron mariadb-server mariadb-client apache2 libapache2-mod-php8.2 php8.2 php8.2-mcrypt php8.2-curl php8.2-mysql php8.2-gd php8.2-ldap php8.2-zip php8.2-mbstring php8.2-xml php8.2-bcmath curl git unzip"
+        install_packages
+
+        echo "* Configuring Apache."
+        create_virtualhost
+        log "phpenmod mcrypt"
+        log "phpenmod mbstring"
+        log "a2enmod rewrite"
+        log "a2ensite $APP_NAME.conf"
+        rename_default_vhost
+
+        set_hosts
+
+        echo "* Starting MariaDB."
+        log "systemctl start mariadb.service"
+
+        install_snipeit
+
+        echo "* Restarting Apache httpd."
+        log "systemctl restart apache2"
+
+        echo "* Clearing cache and setting final permissions."
+        chmod 777 -R $APP_PATH/storage/framework/cache/
+        log "run_as_app_user php $APP_PATH/artisan cache:clear"
+        chmod 775 -R $APP_PATH/storage/
+    elif [ "${version//./}" == "2110" ]; then
+        # Ubuntu 21.10 is no longer supported
+        echo "Unsupported Ubuntu version. Version found: $version"
+        exit 1
+    elif [ "${version//./}" == "2004" ]; then
+        # Install for Ubuntu 20.04
+        set_fqdn
+        set_dbpass
+        tzone=$(cat /etc/timezone)
+
+        echo "* Set up Ondrej PHP repository"
+        echo "deb http://ppa.launchpad.net/ondrej/php/ubuntu $codename main" >> /etc/apt/sources.list.d/ppa_ondrej_php_$codename.list
+        sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 4F4EA0AAE5267A6C
+
+        echo -n "* Updating installed packages."
+        log "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y upgrade" & pid=$!
+        progress
+
+        echo "* Installing Apache httpd, PHP, MariaDB and other requirements."
+        PACKAGES="cron mariadb-server mariadb-client apache2 libapache2-mod-php8.28.2 php8.2 php8.2-mcrypt php8.2-curl php8.2-mysql php8.2-gd php8.2-ldap php8.2-zip php8.2-mbstring php8.2-xml php8.2-bcmath curl git unzip"
+        install_packages
+
+        echo "* Configuring Apache."
+        create_virtualhost
+        log "phpenmod mcrypt"
+        log "phpenmod mbstring"
+        log "a2enmod rewrite"
+        log "a2ensite $APP_NAME.conf"
+        rename_default_vhost
+
+        set_hosts
+
+        echo "* Starting MariaDB."
+        log "systemctl start mariadb.service"
+
+        install_snipeit
+
+        echo "* Restarting Apache httpd."
+        log "systemctl restart apache2"
+
+        echo "* Clearing cache and setting final permissions."
+        chmod 777 -R $APP_PATH/storage/framework/cache/
+        log "run_as_app_user php $APP_PATH/artisan cache:clear"
+        chmod 775 -R $APP_PATH/storage/
+    elif [ "${version//./}" == "1804" ]; then
+        eol
+        exit 1
+    else
+        echo "Unsupported Ubuntu version. Version found: $version"
+        exit 1
+    fi
+    ;;
+  Raspbian)
+    if [[ "$version" =~ ^10 ]]; then
+        # Install for Raspbian 9.x
+        set_fqdn
+        set_dbpass
+        tzone=$(cat /etc/timezone)
+        cat >/etc/apt/sources.list.d/10-buster.list <<EOL
+deb http://mirrordirector.raspbian.org/raspbian/ buster main contrib non-free rpi
+EOL
+
+    cat >/etc/apt/preferences.d/10-buster <<EOL
+Package: *
+Pin: release n=stretch
+Pin-Priority: 900
+
+Package: *
+Pin: release n=buster
+Pin-Priority: 750
+EOL
+        echo "* Set up Ondrej PHP repository"
+        echo "deb http://ppa.launchpad.net/ondrej/php/ubuntu $codename main" >> /etc/apt/sources.list.d/ppa_ondrej_php_$codename.list
+
+        echo -n "* Updating installed packages."
+        log "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y upgrade" & pid=$!
+        progress
+
+        echo "* Installing Apache httpd, PHP, MariaDB and other requirements."
+        PACKAGES="mariadb-server mariadb-client apache2 libapache2-mod-php8.2 php8.2 php8.2-mcrypt php8.2-curl php8.2-mysql php8.2-gd php8.2-ldap php8.2-zip php8.2-mbstring php8.2-xml php8.2-bcmath curl git unzip"
+        install_packages
+
+        echo "* Configuring Apache."
+        create_virtualhost
+        log "phpenmod mcrypt"
+        log "phpenmod mbstring"
+        log "a2enmod rewrite"
+        log "a2ensite $APP_NAME.conf"
+
+        set_hosts
+
+        echo "* Starting MariaDB."
+        log "systemctl start mariadb.service"
+
+        echo "* Securing MariaDB."
+        /usr/bin/mysql_secure_installation
+
+        install_snipeit
+
+        echo "* Restarting Apache httpd."
+        log "systemctl restart apache2"
+    else
+        echo "Unsupported Raspbian version. Version found: $version"
+        exit 1
+    fi
+  ;;
+  Centos)
+    if [[ "$version" =~ ^6 ]]; then
+        eol
+        exit 1
+    elif [[ "$version" =~ ^2 || "$distro" == "amzn" ]]; then
+        # Install for amazon linux 2
+        set_fqdn
+        set_dbpass
+        tzone=$(timedatectl | gawk -F'[: ]' ' $9 ~ /zone/ {print $11}');
+
+        amazon-linux-extras install -y php8.2
+
+        echo "* Installing Apache httpd, PHP, MariaDB and other requirements."
+        PACKAGES="httpd mariadb-server git unzip php php-mysqlnd php-bcmath php-embedded php-gd php-mbstring php-mcrypt php-ldap php-json php-simplexml php-process php-zip  php-sodium"
+        install_packages
+
+        echo "* Configuring Apache."
+        create_virtualhost
+
+        set_hosts
+
+        echo "* Setting MariaDB to start on boot and starting MariaDB."
+        log "systemctl enable mariadb.service"
+        log "systemctl start mariadb.service"
+
+        install_snipeit
+
+        set_firewall
+
+        echo "* Setting Apache httpd to start on boot and starting service."
+        log "systemctl enable httpd.service"
+        log "systemctl restart httpd.service"
+
+        echo "* Clearing cache and setting final permissions."
+        chmod 777 -R $APP_PATH/storage/framework/cache/
+        log "run_as_app_user php $APP_PATH/artisan cache:clear"
+        chmod 775 -R $APP_PATH/storage/
+
+        set_selinux
+
+    elif [[ "$version" =~ ^7 ]]; then
+        # Install for CentOS/Redhat 7
+        set_fqdn
+        set_dbpass
+        tzone=$(timedatectl | gawk -F'[: ]' ' $9 ~ /zone/ {print $11}');
+
+        echo "* Adding Remi and EPEL-Release repositories."
+        log "yum -y install wget epel-release yum-utils" & pid=$!
+        progress
+        log "yum -y install http://rpms.remirepo.net/enterprise/remi-release-7.rpm" & pid=$!
+        progress
+        log "yum-config-manager --enable remi-php82"
+
+        echo "* Installing Apache httpd, PHP, MariaDB and other requirements."
+        PACKAGES="httpd mariadb-server git unzip php php-mysqlnd php-bcmath php-embedded php-gd php-mbstring php-mcrypt php-ldap php-json php-simplexml php-process php-zip"
+        install_packages
+
+        echo "* Configuring Apache."
+        create_virtualhost
+
+        set_hosts
+
+        echo "* Setting MariaDB to start on boot and starting MariaDB."
+        log "systemctl enable mariadb.service"
+        log "systemctl start mariadb.service"
+
+        install_snipeit
+
+        set_firewall
+
+        echo "* Setting Apache httpd to start on boot and starting service."
+        log "systemctl enable httpd.service"
+        log "systemctl restart httpd.service"
+
+        echo "* Clearing cache and setting final permissions."
+        chmod 777 -R $APP_PATH/storage/framework/cache/
+        log "run_as_app_user php $APP_PATH/artisan cache:clear"
+        chmod 775 -R $APP_PATH/storage/
+
+        set_selinux
+
+    elif [[ "$version" =~ ^8 ]]; then
+        # Install for CentOS/Redhat 8
+        set_fqdn
+        set_dbpass
+        tzone=$(timedatectl | grep "Time zone" | awk 'BEGIN { FS"("}; {print $3}');
+
+        echo "* Adding Remi and EPEL-Release repositories."
+        log "yum -y install wget epel-release yum-utils" & pid=$!
+        progress
+        log "yum -y install https://rpms.remirepo.net/enterprise/remi-release-8.rpm" & pid=$!
+        progress
+        log "rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-remi.el8"
+        log "dnf -y module enable php:remi-8.2" & pid=$!
+        progress
+
+        echo "* Installing Apache httpd, PHP, MariaDB and other requirements."
+        PACKAGES="httpd mariadb-server git unzip php php-mysqlnd php-bcmath php-embedded php-gd php-mbstring php-mcrypt php-ldap php-json php-simplexml php-process php-zip"
+        install_packages
+
+        echo "* Configuring Apache."
+        create_virtualhost
+
+        set_hosts
+
+        echo "* Setting MariaDB to start on boot and starting MariaDB."
+        log "systemctl enable mariadb.service"
+        log "systemctl start mariadb.service"
+
+        install_snipeit
+
+        set_firewall
+
+        echo "* Setting Apache httpd to start on boot and starting service."
+        log "systemctl enable httpd.service"
+        log "systemctl restart httpd.service"
+
+        echo "* Clearing cache and setting final permissions."
+        chmod 777 -R $APP_PATH/storage/framework/cache/
+        log "run_as_app_user php $APP_PATH/artisan cache:clear"
+        chmod 775 -R $APP_PATH/storage/
+
+        set_selinux
+
+    elif [[ "$version" =~ ^9 ]]; then
+        # Install for CentOS/Alma/Redhat 9
+        set_fqdn
+        set_dbpass
+        tzone=$(timedatectl | grep "Time zone" | awk 'BEGIN { FS"("}; {print $3}');
+
+        echo "* Adding EPEL-release repository."
+        log "dnf -y install wget epel-release" & pid=$!
+        progress
+        log "yum -y install https://rpms.remirepo.net/enterprise/remi-release-9.rpm" & pid=$!
+        progress
+        log "rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-remi.el9"
+        log "dnf -y module enable php:remi-8.2" & pid=$!
+        progress
+
+        echo "* Installing Apache httpd, PHP, MariaDB, and other requirements."
+        PACKAGES="httpd mariadb-server git unzip php-mysqlnd php-bcmath php-cli php-embedded php-gd php-mbstring php-ldap php-simplexml php-process php-sodium php-pecl-zip php-fpm"
+        install_packages
+
+        echo "* Configuring Apache."
+        create_virtualhost
+
+        set_hosts
+
+        echo "* Setting MariaDB to start on boot and starting MariaDB."
+        log "systemctl enable mariadb.service"
+        log "systemctl start mariadb.service"
+
+        install_snipeit
+
+        set_firewall & pid=$!
+        progress
+
+        echo "* Setting Apache httpd to start on boot and starting service."
+        log "systemctl enable httpd.service"
+        log "systemctl restart httpd.service"
+
+        echo "* Setting php-fpm to start on boot and starting service."
+        log "systemctl enable php-fpm.service"
+        log "systemctl restart php-fpm.service"
+
+        echo "* Clearing cache and setting final permissions."
+        chmod 777 -R $APP_PATH/storage/framework/cache/
+        log "run_as_app_user php $APP_PATH/artisan cache:clear"
+        chmod 775 -R $APP_PATH/storage/
+
+        set_selinux
+
+    else
+        echo "Unsupported CentOS version. Version found: $version"
+        exit 1
+    fi
+  ;;
+  *)
+    echo "Your OS was not detected correctly."
+    exit 1
+esac
+
+setupmail=default
+until [[ $setupmail == "yes" ]] || [[ $setupmail == "no" ]]; do
+echo "  Q. Do you want to configure mail server settings now? This can be done later too. "
+echo -n "     * You will need mail server address, port, user and password among other items. (y/n) "
+read -r setupmail
+
+case $setupmail in
+  [yY] | [yY][Ee][Ss] )
+    echo -n "  Outgoing mailserver address:"
+    read -r mailhost
+    sed -i "s|^\\(MAIL_HOST=\\).*|\\1$mailhost|" "$APP_PATH/.env"
+
+    echo -n "  Server port number:"
+    read -r mailport
+    sed -i "s|^\\(MAIL_PORT=\\).*|\\1$mailport|" "$APP_PATH/.env"
+
+    echo -n "  Username:"
+    read -r mailusername
+    sed -i "s|^\\(MAIL_USERNAME=\\).*|\\1$mailusername|" "$APP_PATH/.env"
+
+    echo -n "  Password:"
+    read -rs mailpassword
+    sed -i "s|^\\(MAIL_PASSWORD=\\).*|\\1$mailpassword|" "$APP_PATH/.env"
+    echo ""
+
+    echo -n "  Verify TLS certificate on remote server? (true/false):"
+    read -r mailverifypeer
+    sed -i "s|^\\(MAIL_TLS_VERIFY_PEER=\\).*|\\1$mailverifypeer|" "$APP_PATH/.env"
+
+    echo -n "  From address:"
+    read -r mailfromaddr
+    sed -i "s|^\\(MAIL_FROM_ADDR=\\).*|\\1$mailfromaddr|" "$APP_PATH/.env"
+
+    echo -n "  From name:"
+    read -r mailfromname
+    sed -i "s|^\\(MAIL_FROM_NAME=\\).*|\\1$mailfromname|" "$APP_PATH/.env"
+
+    echo -n "  Reply to address:"
+    read -r mailreplytoaddr
+    sed -i "s|^\\(MAIL_REPLYTO_ADDR=\\).*|\\1$mailreplytoaddr|" "$APP_PATH/.env"
+
+    echo -n "  Reply to name:"
+    read -r mailreplytoname
+    sed -i "s|^\\(MAIL_REPLYTO_NAME=\\).*|\\1$mailreplytoname|" "$APP_PATH/.env"
+    setupmail="yes"
+    ;;
+  [nN] | [n|N][O|o] )
+    setupmail="no"
+    ;;
+  *)  echo "  Invalid answer. Please type y or n"
+    ;;
 esac
 done
 
-#Snipe says we need a new 32bit key, so let's create one randomly and inject it into the file
-random32="$(echo `< /dev/urandom tr -dc _A-Za-z-0-9 | head -c32`)"
-
-#db_setup.sql will be injected to the database during install.
-#Again, this file should be removed, which will be a prompt at the end of the script.
-dbsetup=$tmp/db_setup.sql
-echo >> $dbsetup "CREATE DATABASE snipeit;"
-echo >> $dbsetup "GRANT ALL PRIVILEGES ON snipeit.* TO snipeit@localhost IDENTIFIED BY '$mysqluserpw';"
-
-#Let us make it so only root can read the file. Again, this isn't best practice, so please remove these after the install.
-chown root:root $dbsetup
-chmod 700 $dbsetup
-
-## TODO: Progress tracker on each step
-
-case $distro in
-	debian)
-		#####################################  Install for Debian ##############################################
-
-		webdir=/var/www
-
-		#Update/upgrade Debian repositories.
-		echo ""
-		echo "##  Updating Debian packages in the background. Please be patient."
-		echo ""
-		apachefile=/etc/apache2/sites-available/$name.conf
-		sudo apt-get update >> /var/log/snipeit-install.log 2>&1
-		sudo apt-get -y upgrade >> /var/log/snipeit-install.log 2>&1
-
-		echo "##  Installing packages."
-		sudo apt-get -y install mariadb-server mariadb-client
-		echo "## Going to suppress more messages that you don't need to worry about. Please wait."
-		sudo apt-get -y install apache2 >> /var/log/snipeit-install.log 2>&1
-		sudo apt-get install -y git unzip php5 php5-mcrypt php5-curl php5-mysql php5-gd php5-ldap libapache2-mod-php5 curl >> /var/log/snipeit-install.log 2>&1
-
-		#  Get files and extract to web dir
-		echo ""
-		echo "##  Downloading snipeit and extract to web directory."
-		wget -P $tmp/ https://github.com/snipe/snipe-it/archive/$file
-		unzip -qo $tmp/$file -d $tmp/
-		cp -R $tmp/$fileName $webdir/$name
-
-		##  TODO make sure apache is set to start on boot and go ahead and start it
-
-		#Enable mcrypt and rewrite
-		echo "##  Enabling mcrypt and rewrite"
-
-		sudo php5enmod mcrypt
-		sudo a2enmod rewrite
-
-		#Create a new virtual host for Apache.
-		echo "##  Create Virtual host for apache."
-		echo >> $apachefile ""
-		echo >> $apachefile ""
-		echo >> $apachefile "<VirtualHost *:80>"
-		echo >> $apachefile "ServerAdmin webmaster@localhost"
-		echo >> $apachefile "    <Directory $webdir/$name/public>"
-		echo >> $apachefile "        Require all granted"
-		echo >> $apachefile "        AllowOverride All"
-		echo >> $apachefile "   </Directory>"
-		echo >> $apachefile "    DocumentRoot $webdir/$name/public"
-		echo >> $apachefile "    ServerName $fqdn"
-		echo >> $apachefile "        ErrorLog /var/log/apache2/snipeIT.error.log"
-		echo >> $apachefile "        CustomLog /var/log/apache2/access.log combined"
-		echo >> $apachefile "</VirtualHost>"
-
-
-		echo "## Configuring .env file."
-		cat > $webdir/$name/.env <<-EOF
-		#Created By Snipe-it Installer
-		APP_TIMEZONE=$(cat /etc/timezone)
-		DB_HOST=localhost
-		DB_DATABASE=snipeit
-		DB_USERNAME=snipeit
-		DB_PASSWORD=$mysqluserpw
-		APP_URL=http://$fqdn
-		APP_KEY=$random32
-		EOF
-
-		echo "##  Setting up hosts file."
-		echo >> $hosts "127.0.0.1 $hostname $fqdn"
-		a2ensite $name.conf
-
-		#Modify the Snipe-It files necessary for a production environment.
-		echo "##  Modify the Snipe-It files necessary for a production environment."
-
-		echo "##  Securing Mysql"
-		# Have user set own root password when securing install
-		# and just set the snipeit database user at the beginning
-		/usr/bin/mysql_secure_installation
-
-		##  TODO make sure mysql is set to start on boot and go ahead and start it
-		
-		echo "Creating Mysql Database and User."
-		echo "##  Please Input your MySQL/MariaDB root password: "
-		echo ""
-		mysql -u root -p < $dbsetup
-		echo ""
-
-		#Install / configure composer
-		echo "##  Installing and configuring composer"
-		cd $webdir/$name/
-		curl -sS https://getcomposer.org/installer | php
-		php composer.phar install --no-dev --prefer-source
-
-		#Change permissions on directories
-		echo "##  Seting permissions on web directory."
-		sudo chmod -R 755 $webdir/$name/storage
-		sudo chmod -R 755 $webdir/$name/storage/private_uploads
-		sudo chmod -R 755 $webdir/$name/public/uploads
-		sudo chown -R www-data:www-data /var/www/
-		# echo "##  Finished permission changes."
-
-		echo "##  Restarting apache."
-		service apache2 restart
-		;;
-
-	ubuntu)
-		#####################################  Install for Ubuntu  ##############################################
-
-		webdir=/var/www
-
-		#Update/upgrade Debian/Ubuntu repositories, get the latest version of git.
-		echo ""
-		echo "##  Updating ubuntu in the background. Please be patient."
-		echo ""
-		apachefile=/etc/apache2/sites-available/$name.conf
-		sudo apt-get update >> /var/log/snipeit-install.log 2>&1
-		sudo apt-get -y upgrade >> /var/log/snipeit-install.log 2>&1
-		echo "##  Installing packages."
-
-		#We already established MySQL root & user PWs, so we dont need to be prompted. Let's go ahead and install Apache, PHP and MySQL.
-		echo "##  Setting up LAMP."
-		sudo DEBIAN_FRONTEND=noninteractive apt-get install -y lamp-server^ >> /var/log/snipeit-install.log 2>&1 
-
-		if [ "$version" == "16.04" ]; then
-			sudo apt-get install -y git unzip php php-mcrypt php-curl php-mysql php-gd php-ldap php-zip php-mbstring >> /var/log/snipeit-install.log 2>&1
-			#Enable mcrypt and rewrite
-			echo "##  Enabling mcrypt and rewrite"
-			sudo phpenmod mcrypt >> /var/log/snipeit-install.log 2>&1
-			sudo phpenmod mbstring >> /var/log/snipeit-install 2>&1
-			sudo a2enmod rewrite >> /var/log/snipeit-install.log 2>&1
-		else
-			sudo apt-get install -y git unzip php5 php5-mcrypt php5-curl php5-mysql php5-gd php5-ldap >> /var/log/snipeit-install.log 2>&1
-			#Enable mcrypt and rewrite
-			echo "##  Enabling mcrypt and rewrite"
-			sudo php5enmod mcrypt >> /var/log/snipeit-install.log 2>&1
-			sudo a2enmod rewrite >> /var/log/snipeit-install.log 2>&1
-		fi
-		#  Get files and extract to web dir
-		echo ""
-		echo "##  Downloading snipeit and extract to web directory."
-		wget -P $tmp/ https://github.com/snipe/snipe-it/archive/$file >> /var/log/snipeit-install.log 2>&1
-		unzip -qo $tmp/$file -d $tmp/
-		cp -R $tmp/$fileName $webdir/$name
-
-		##  TODO make sure apache is set to start on boot and go ahead and start it
-
-
-
-		sudo ls -al /etc/apache2/mods-enabled/rewrite.load >> /var/log/snipeit-install.log 2>&1
-
-		#Create a new virtual host for Apache.
-		echo "##  Create Virtual host for apache."
-		echo >> $apachefile ""
-		echo >> $apachefile ""
-		echo >> $apachefile "<VirtualHost *:80>"
-		echo >> $apachefile "ServerAdmin webmaster@localhost"
-		echo >> $apachefile "    <Directory $webdir/$name/public>"
-		echo >> $apachefile "        Require all granted"
-		echo >> $apachefile "        AllowOverride All"
-		echo >> $apachefile "   </Directory>"
-		echo >> $apachefile "    DocumentRoot $webdir/$name/public"
-		echo >> $apachefile "    ServerName $fqdn"
-		echo >> $apachefile "        ErrorLog /var/log/apache2/snipeIT.error.log"
-		echo >> $apachefile "        CustomLog /var/log/apache2/access.log combined"
-		echo >> $apachefile "</VirtualHost>"
-
-		echo "##  Setting up hosts file."
-		echo >> $hosts "127.0.0.1 $hostname $fqdn"
-
-		a2ensite $name.conf >> /var/log/snipeit-install.log 2>&1
-
-		cat > $webdir/$name/.env <<-EOF
-		#Created By Snipe-it Installer
-		APP_TIMEZONE=$(cat /etc/timezone)
-		DB_HOST=localhost
-		DB_DATABASE=snipeit
-		DB_USERNAME=snipeit
-		DB_PASSWORD=$mysqluserpw
-		APP_URL=http://$fqdn
-		APP_KEY=$random32
-		EOF
-
-		##  TODO make sure mysql is set to start on boot and go ahead and start it
-
-		# Setup Mysql, then run the command.
-		/usr/bin/mysql_secure_installation
-		echo "##  Creating MySQL Database and user. "
-		echo "##  Please Input your MySQL/MariaDB root password: "
-		mysql -u root -p < $dbsetup
-
-		echo "##  Securing Mysql"
-
-		# Have user set own root password when securing install
-		# and just set the snipeit database user at the beginning
-
-		#Install / configure composer
-		echo "##  Installing and configuring composer"
-		cd $webdir/$name/
-		curl -sS https://getcomposer.org/installer  | php
-		php composer.phar install --no-dev --prefer-source
-
-		#Change permissions on directories
-		echo "##  Seting permissions on web directory."
-		sudo chmod -R 755 $webdir/$name/storage
-		sudo chmod -R 755 $webdir/$name/storage/private_uploads
-		sudo chmod -R 755 $webdir/$name/public/uploads
-		sudo chown -R www-data:www-data /var/www/$name
-		# echo "##  Finished permission changes."
-
-		echo "##  Restarting apache."
-		service apache2 restart
-		;;
-	centos )
-	if [ "$version" == "6" ]; then
-		#####################################  Install for Centos/Redhat 6  ##############################################
-
-		webdir=/var/www/html
-
-##TODO make sure the repo doesnt exhist isnt already in there
-
-		#Allow us to get the mysql engine
-		echo ""
-		echo "##  Adding IUS, epel-release and mariaDB repos.";
-		mariadbRepo=/etc/yum.repos.d/MariaDB.repo
-		touch $mariadbRepo
-		echo >> $mariadbRepo "[mariadb]"
-		echo >> $mariadbRepo "name = MariaDB"
-		echo >> $mariadbRepo "baseurl = http://yum.mariadb.org/10.0/centos6-amd64"
-		echo >> $mariadbRepo "gpgkey=https://yum.mariadb.org/RPM-GPG-KEY-MariaDB"
-		echo >> $mariadbRepo "gpgcheck=1"
-		echo >> $mariadbRepo "enable=1"
-
-		yum -y install wget epel-release >> /var/log/snipeit-install.log 2>&1
-		wget -P $tmp/ https://centos6.iuscommunity.org/ius-release.rpm >> /var/log/snipeit-install.log 2>&1
-		rpm -Uvh $tmp/ius-release*.rpm >> /var/log/snipeit-install.log 2>&1
-
-
-		#Install PHP and other needed stuff.
-		echo "##  Installing PHP and other needed stuff";
-		PACKAGES="httpd MariaDB-server git unzip php56u php56u-mysqlnd php56u-bcmath php56u-cli php56u-common php56u-embedded php56u-gd php56u-mbstring php56u-mcrypt php56u-ldap"
-
-		for p in $PACKAGES;do
-			if isinstalled $p;then
-				echo " ##" $p "Installed"
-			else
-				echo -n " ##" $p "Installing... "
-				yum -y install $p >> /var/log/snipeit-install.log 2>&1
-				echo "";
-			fi
-		done;
-
-        echo ""
-		echo "##  Downloading Snipe-IT from github and putting it in the web directory.";
-
-		wget -P $tmp/ https://github.com/snipe/snipe-it/archive/$file >> /var/log/snipeit-install.log 2>&1
-		unzip -qo $tmp/$file -d $tmp/
-		cp -R $tmp/$fileName $webdir/$name
-
-		# Make mariaDB start on boot and restart the daemon
-		echo "##  Starting the mariaDB server.";
-		chkconfig mysql on
-		/sbin/service mysql start
-
-		echo "##  Securing mariaDB server.";
-		/usr/bin/mysql_secure_installation
-
-		echo "##  Creating MySQL Database/User."
-		echo "##  Please Input your MySQL/MariaDB root password: "
-		mysql -u root -p < $dbsetup
-
-##TODO make sure the apachefile doesnt exhist isnt already in there
-		#Create the new virtual host in Apache and enable rewrite
-		echo "##  Creating the new virtual host in Apache.";
-		apachefile=/etc/httpd/conf.d/$name.conf
-
-		echo >> $apachefile ""
-		echo >> $apachefile ""
-		echo >> $apachefile ""
-		echo >> $apachefile "<VirtualHost *:80>"
-		echo >> $apachefile "ServerAdmin webmaster@localhost"
-		echo >> $apachefile "    <Directory $webdir/$name/public>"
-		echo >> $apachefile "        Allow From All"
-		echo >> $apachefile "        AllowOverride All"
-		echo >> $apachefile "        Options +Indexes"
-		echo >> $apachefile "   </Directory>"
-		echo >> $apachefile "    DocumentRoot $webdir/$name/public"
-		echo >> $apachefile "    ServerName $fqdn"
-		echo >> $apachefile "        ErrorLog /var/log/httpd/snipeIT.error.log"
-		echo >> $apachefile "        CustomLog /var/log/access.log combined"
-		echo >> $apachefile "</VirtualHost>"
-
-##TODO make sure hosts file doesnt already contain this info
-		echo "##  Setting up hosts file.";
-		echo >> $hosts "127.0.0.1 $hostname $fqdn"
-
-		# Make apache start on boot and restart the daemon
-		echo "##  Starting the apache server.";
-		chkconfig httpd on
-		/sbin/service httpd start
-
-		tzone=$(grep ZONE /etc/sysconfig/clock | tr -d '"' | sed 's/ZONE=//g');
-		echo "## Configuring .env file."
-
-		cat > $webdir/$name/.env <<-EOF
-		#Created By Snipe-it Installer
-		APP_TIMEZONE=$tzone
-		DB_HOST=localhost
-		DB_DATABASE=snipeit
-		DB_USERNAME=snipeit
-		DB_PASSWORD=$mysqluserpw
-		APP_URL=http://$fqdn
-		APP_KEY=$random32
-		EOF
-
-
-		#Install / configure composer
-		echo "##  Configure composer"
-		cd $webdir/$name
-		curl -sS https://getcomposer.org/installer | php
-		php composer.phar install --no-dev --prefer-source
-
-		# Change permissions on directories
-		sudo chmod -R 755 $webdir/$name/storage
-		sudo chmod -R 755 $webdir/$name/public/uploads
-		sudo chown -R apache:apache $webdir/$name
-
-#TODO detect if SELinux and firewall are enabled to decide what to do
-		#Add SELinux and firewall exception/rules. Youll have to allow 443 if you want ssl connectivity.
-		# chcon -R -h -t httpd_sys_script_rw_t $webdir/$name/
-		# firewall-cmd --zone=public --add-port=80/tcp --permanent
-		# firewall-cmd --reload
-
-		service httpd restart
-		
-	elif [ "$version" == "7" ]; then
-		#####################################  Install for Centos/Redhat 7  ##############################################
-
-		webdir=/var/www/html
-
-		#Allow us to get the mysql engine
-		echo ""
-		echo "##  Add IUS, epel-release and mariaDB repos.";
-		yum -y install wget epel-release >> /var/log/snipeit-install.log 2>&1
-		wget -P $tmp/ https://centos7.iuscommunity.org/ius-release.rpm >> /var/log/snipeit-install.log 2>&1
-		rpm -Uvh $tmp/ius-release*.rpm >> /var/log/snipeit-install.log 2>&1
-
-		#Install PHP and other needed stuff.
-		echo "##  Installing PHP and other needed stuff";
-		PACKAGES="httpd mariadb-server git unzip php56u php56u-mysqlnd php56u-bcmath php56u-cli php56u-common php56u-embedded php56u-gd php56u-mbstring php56u-mcrypt php56u-ldap"
-
-		for p in $PACKAGES;do
-			if isinstalled $p;then
-				echo " ##" $p "Installed"
-			else
-				echo -n " ##" $p "Installing... "
-				yum -y install $p >> /var/log/snipeit-install.log 2>&1
-			echo "";
-			fi
-		done;
-
-        echo ""
-		echo "##  Downloading Snipe-IT from github and put it in the web directory.";
-
-		wget -P $tmp/ https://github.com/snipe/snipe-it/archive/$file >> /var/log/snipeit-install.log 2>&1
-		unzip -qo $tmp/$file -d $tmp/
-		cp -R $tmp/$fileName $webdir/$name
-
-		# Make mariaDB start on boot and restart the daemon
-		echo "##  Starting the mariaDB server.";
-		systemctl enable mariadb.service
-		systemctl start mariadb.service
-
-		echo "##  Securing mariaDB server.";
-		echo "";
-		echo "";
-		/usr/bin/mysql_secure_installation
-
-		echo "##  Creating MySQL Database/User."
-		echo "##  Please Input your MySQL/MariaDB root password "
-		mysql -u root -p < $dbsetup
-
-##TODO make sure the apachefile doesnt exhist isnt already in there
-		#Create the new virtual host in Apache and enable rewrite
-		apachefile=/etc/httpd/conf.d/$name.conf
-
-		echo "##  Creating the new virtual host in Apache.";
-		echo >> $apachefile ""
-		echo >> $apachefile ""
-		echo >> $apachefile "LoadModule rewrite_module modules/mod_rewrite.so"
-		echo >> $apachefile ""
-		echo >> $apachefile "<VirtualHost *:80>"
-		echo >> $apachefile "ServerAdmin webmaster@localhost"
-		echo >> $apachefile "    <Directory $webdir/$name/public>"
-		echo >> $apachefile "        Allow From All"
-		echo >> $apachefile "        AllowOverride All"
-		echo >> $apachefile "        Options +Indexes"
-		echo >> $apachefile "   </Directory>"
-		echo >> $apachefile "    DocumentRoot $webdir/$name/public"
-		echo >> $apachefile "    ServerName $fqdn"
-		echo >> $apachefile "        ErrorLog /var/log/httpd/snipeIT.error.log"
-		echo >> $apachefile "        CustomLog /var/log/access.log combined"
-		echo >> $apachefile "</VirtualHost>"
-
-##TODO make sure this isnt already in there
-		echo "##  Setting up hosts file.";
-		echo >> $hosts "127.0.0.1 $hostname $fqdn"
-
-
-		echo "##  Starting the apache server.";
-		# Make apache start on boot and restart the daemon
-		systemctl enable httpd.service
-		systemctl restart httpd.service
-
-
-		tzone=$(timedatectl | gawk -F'[: ]' ' $9 ~ /zone/ {print $11}');
-		echo "## Configuring .env file."
-
-		cat > $webdir/$name/.env <<-EOF
-		#Created By Snipe-it Installer
-		APP_TIMEZONE=$tzone
-		DB_HOST=localhost
-		DB_DATABASE=snipeit
-		DB_USERNAME=snipeit
-		DB_PASSWORD=$mysqluserpw
-		APP_URL=http://$fqdn
-		APP_KEY=$random32
-
-		EOF
-
-		# Change permissions on directories
-
-
-		#Install / configure composer
-		cd $webdir/$name
-
-		curl -sS https://getcomposer.org/installer | php
-		php composer.phar install --no-dev --prefer-source
-
-		sudo chmod -R 755 $webdir/$name/storage
-		sudo chmod -R 755 $webdir/$name/storage/private_uploads
-		sudo chmod -R 755 $webdir/$name/public/uploads
-		sudo chown -R apache:apache $webdir/$name
-		# Make SeLinux happy
-		sudo chcon -R -h -t httpd_sys_script_rw_t $webdir/$name/
-#TODO detect if SELinux and firewall are enabled to decide what to do
-		#Add SELinux and firewall exception/rules. Youll have to allow 443 if you want ssl connectivity.
-		# chcon -R -h -t httpd_sys_script_rw_t $webdir/$name/
-		# firewall-cmd --zone=public --add-port=80/tcp --permanent
-		# firewall-cmd --reload
-
-		systemctl restart httpd.service
-
-	else
-		echo "Unable to Handle Centos Version #.  Version Found: " $version
-		return 1
-	fi
-esac
-
-echo ""
-echo "  ***If you want mail capabilities, edit $webdir/$name/.env and edit based on .env.example***"
 echo ""
 echo "  ***Open http://$fqdn to login to Snipe-IT.***"
 echo ""
 echo ""
-echo "##  Cleaning up..."
-rm -f snipeit.sh
-rm -f install.sh
-rm -rf $tmp/
-echo "##  Done!"
+echo "* Installation log located in $APP_LOG."
+echo "* Finished!"
 sleep 1

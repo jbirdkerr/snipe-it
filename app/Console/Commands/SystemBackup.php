@@ -6,13 +6,12 @@ use Illuminate\Console\Command;
 
 class SystemBackup extends Command
 {
-
     /**
      * The console command name.
      *
      * @var string
      */
-    protected $name = 'snipeit:backup';
+    protected $signature = 'snipeit:backup {--filename=}';
 
     /**
      * The console command description.
@@ -36,10 +35,20 @@ class SystemBackup extends Command
      *
      * @return mixed
      */
-    public function fire()
+    public function handle()
     {
-        //
-        $this->call('backup:run');
+        if ($this->option('filename')) {
+            $filename = $this->option('filename');
+
+            // Make sure the filename ends in .zip
+            if (!ends_with($filename, '.zip')) {
+                $filename = $filename.'.zip';
+            }
+
+            $this->call('backup:run', ['--filename' => $filename]);
+        } else {
+            $this->call('backup:run');
+        }
 
     }
 }

@@ -1,29 +1,42 @@
 <?php
+
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Traits\Searchable;
+use App\Presenters\Presentable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Gate;
 use Watson\Validating\ValidatingTrait;
 
-class Manufacturer extends Model
+class Manufacturer extends SnipeModel
 {
+    use HasFactory;
+
+    protected $presenter = \App\Presenters\ManufacturerPresenter::class;
+    use Presentable;
     use SoftDeletes;
-    protected $dates = ['deleted_at'];
+
     protected $table = 'manufacturers';
 
     // Declare the rules for the form validation
-    protected $rules = array(
-        'name'   => 'required|min:2|max:255|unique:manufacturers,name,NULL,deleted_at',
-        'user_id' => 'integer',
-    );
+    protected $rules = [
+        'name'   => 'required|min:2|max:255|unique:manufacturers,name,NULL,id,deleted_at,NULL',
+        'url'   => 'nullable|starts_with:http://,https://,afp://,facetime://,file://,irc://',
+        'support_email'   => 'email|nullable',
+        'support_url'   => 'nullable|starts_with:http://,https://,afp://,facetime://,file://,irc://',
+        'warranty_lookup_url' => 'nullable|starts_with:http://,https://,afp://,facetime://,file://,irc://'
+    ];
+
+    protected $hidden = ['user_id'];
 
     /**
-    * Whether the model should inject it's identifier to the unique
-    * validation rules before attempting validation. If this property
-    * is not set in the model it will default to true.
-    *
-    * @var boolean
-    */
+     * Whether the model should inject it's identifier to the unique
+     * validation rules before attempting validation. If this property
+     * is not set in the model it will default to true.
+     *
+     * @var bool
+     */
     protected $injectUniqueIdentifier = true;
     use ValidatingTrait;
 
@@ -32,34 +45,64 @@ class Manufacturer extends Model
      *
      * @var array
      */
-    protected $fillable = ['name'];
+    protected $fillable = [
+        'name',
+        'image',
+        'support_email',
+        'support_phone',
+        'support_url',
+        'url',
+        'warranty_lookup_url',
+    ];
 
+    use Searchable;
 
+    /**
+     * The attributes that should be included when searching the model.
+     *
+     * @var array
+     */
+    protected $searchableAttributes = ['name', 'created_at'];
 
-    public function has_models()
+    /**
+     * The relations and their attributes that should be included when searching the model.
+     *
+     * @var array
+     */
+    protected $searchableRelations = [];
+
+    public function isDeletable()
     {
-        return $this->hasMany('\App\Models\AssetModel', 'manufacturer_id')->count();
+        return Gate::allows('delete', $this)
+            && ($this->assets()->count() === 0)
+            && ($this->licenses()->count() === 0)
+            && ($this->consumables()->count() === 0)
+            && ($this->accessories()->count() === 0)
+            && ($this->deleted_at == '');
     }
 
     public function assets()
     {
-        return $this->hasManyThrough('\App\Models\Asset', '\App\Models\AssetModel', 'manufacturer_id', 'model_id');
+        return $this->hasManyThrough(\App\Models\Asset::class, \App\Models\AssetModel::class, 'manufacturer_id', 'model_id');
     }
 
-    /**
-    * Query builder scope to search on text
-    *
-    * @param  Illuminate\Database\Query\Builder  $query  Query builder instance
-    * @param  text                              $search      Search term
-    *
-    * @return Illuminate\Database\Query\Builder          Modified query builder
-    */
-    public function scopeTextSearch($query, $search)
+    public function models()
     {
+        return $this->hasMany(\App\Models\AssetModel::class, 'manufacturer_id');
+    }
 
-        return $query->where(function ($query) use ($search) {
-        
-            $query->where('name', 'LIKE', '%'.$search.'%');
-        });
+    public function licenses()
+    {
+        return $this->hasMany(\App\Models\License::class, 'manufacturer_id');
+    }
+
+    public function accessories()
+    {
+        return $this->hasMany(\App\Models\Accessory::class, 'manufacturer_id');
+    }
+
+    public function consumables()
+    {
+        return $this->hasMany(\App\Models\Consumable::class, 'manufacturer_id');
     }
 }

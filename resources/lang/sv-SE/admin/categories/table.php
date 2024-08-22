@@ -3,8 +3,8 @@
 return array(
 	'eula_text'      			=> 'EULA',
     'id'      					=> 'ID',
-    'parent'   					=> 'Förälder',
-    'require_acceptance'      	=> 'Acceptance',
-    'title'      				=> 'Tillgångskategori',
+    'parent'   					=> 'Överordnad',
+    'require_acceptance'      	=> 'Godkännande',
+    'title'      				=> 'Namn på kategori',
 
 );

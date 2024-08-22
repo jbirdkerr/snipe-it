@@ -2,23 +2,29 @@
 
 return array(
 
-    'does_not_exist' => 'Manufacturer does not exist.',
-    'assoc_users'	 => 'This manufacturer is currently associated with at least one model and cannot be deleted. Please update your models to no longer reference this manufacturer and try again. ',
+    'support_url_help' => 'Variables <code>{LOCALE}</code>, <code>{SERIAL}</code>, <code>{MODEL_NUMBER}</code>, y <code>{MODEL_NAME}</code> se pueden utilizar en su URL para que esos valores se llenen automáticamente al ver los activos - por ejemplo https://checkcoverage. pple.com/{LOCALE}/{SERIAL}.',
+    'does_not_exist' => 'El fabricante no existe.',
+    'assoc_users'	 => 'Este fabricante está actualmente asociado con al menos un modelo y no se puede eliminar. Por favor, actualice sus modelos para dejar de hacer referencia a este fabricante y vuelva a intentarlo. ',
 
     'create' => array(
-        'error'   => 'Manufacturer was not created, please try again.',
-        'success' => 'Manufacturer created successfully.'
+        'error'   => 'El fabricante no fue creado, por favor inténtelo de nuevo.',
+        'success' => 'Fabricante creado con éxito.'
     ),
 
     'update' => array(
-        'error'   => 'Manufacturer was not updated, please try again',
-        'success' => 'Manufacturer updated successfully.'
+        'error'   => 'El fabricante no fue actualizado, por favor inténtelo de nuevo',
+        'success' => 'El fabricante se ha actualizado correctamente.'
+    ),
+
+    'restore' => array(
+        'error'   => 'El fabricante no ha sido restaurado, por favor inténtalo de nuevo',
+        'success' => 'Fabricante restaurado con éxito.'
     ),
 
     'delete' => array(
-        'confirm'   => 'Are you sure you wish to delete this manufacturer?',
-        'error'   => 'There was an issue deleting the manufacturer. Please try again.',
-        'success' => 'The Manufacturer was deleted successfully.'
+        'confirm'   => '¿Está seguro de que desea eliminar este fabricante?',
+        'error'   => 'Ocurrió un problema eliminando el fabricante. Por favor, intente nuevamente.',
+        'success' => 'El fabricante se ha eliminado correctamente.'
     )
 
 );

@@ -2,34 +2,36 @@
 
 return array(
 
-    'does_not_exist' => 'Consumable does not exist.',
+    'invalid_category_type' => 'La categoría debe ser una categoría para consumibles.',
+    'does_not_exist' => 'El consumible no existe.',
 
     'create' => array(
-        'error'   => 'Consumable was not created, please try again.',
-        'success' => 'Consumable created successfully.'
+        'error'   => 'El consumible no fue creado, por favor inténtelo nuevamente.',
+        'success' => 'Consumible creado con éxito.'
     ),
 
     'update' => array(
-        'error'   => 'Consumable was not updated, please try again',
-        'success' => 'Consumable updated successfully.'
+        'error'   => 'El consumible no fue actualizado, por favor, inténtelo de nuevo',
+        'success' => 'Consumible actualizado con éxito.'
     ),
 
     'delete' => array(
-        'confirm'   => 'Are you sure you wish to delete this consumable?',
-        'error'   => 'There was an issue deleting the consumable. Please try again.',
-        'success' => 'The consumable was deleted successfully.'
+        'confirm'   => '¿Está seguro de que desea eliminar este consumible?',
+        'error'   => 'Hubo un problema al eliminar el consumible. Por favor inténtelo de nuevo.',
+        'success' => 'El consumible fue eliminado con éxito.'
     ),
 
      'checkout' => array(
-        'error'   		=> 'Consumable was not checked out, please try again',
-        'success' 		=> 'Consumable checked out successfully.',
-        'user_does_not_exist' => 'That user is invalid. Please try again.'
+        'error'   		=> 'El consumible no fue asignado, por favor inténtelo de nuevo',
+        'success' 		=> 'Consumible asignado correctamente.',
+        'user_does_not_exist' => 'Ese usuario no es válido. Por favor, inténtelo de nuevo.',
+         'unavailable'      => 'No hay suficientes consumibles para esta asignación. Por favor, compruebe la cantidad disponible. ',
     ),
 
     'checkin' => array(
-        'error'   		=> 'Consumable was not checked in, please try again',
-        'success' 		=> 'Consumable checked in successfully.',
-        'user_does_not_exist' => 'That user is invalid. Please try again.'
+        'error'   		=> 'El consumible no fue ingresado, por favor inténtelo de nuevo',
+        'success' 		=> 'El consumible fue ingresado correctamente.',
+        'user_does_not_exist' => 'Ese usuario no es válido. Por favor, inténtelo de nuevo.'
     )
 
 

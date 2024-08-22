@@ -1,34 +1,50 @@
 <?php
 
-class TestCase extends Illuminate\Foundation\Testing\TestCase
+namespace Tests;
+
+use App\Http\Middleware\SecurityHeaders;
+use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use RuntimeException;
+use Tests\Support\AssertsAgainstSlackNotifications;
+use Tests\Support\CanSkipTests;
+use Tests\Support\CustomTestMacros;
+use Tests\Support\InteractsWithAuthentication;
+use Tests\Support\InitializesSettings;
+
+abstract class TestCase extends BaseTestCase
 {
-    /**
-     * The base URL to use while testing the application.
-     *
-     * @var string
-     */
-    protected $baseUrl = 'http://localhost:8000';
+    use AssertsAgainstSlackNotifications;
+    use CanSkipTests;
+    use CreatesApplication;
+    use CustomTestMacros;
+    use InteractsWithAuthentication;
+    use InitializesSettings;
+    use LazilyRefreshDatabase;
 
-    /**
-     * Creates the application.
-     *
-     * @return \Illuminate\Foundation\Application
-     */
-    public function createApplication()
-    {
-        $app = require_once __DIR__.'/../bootstrap/app.php';
-        $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
-        return $app;
-    }
+    private array $globallyDisabledMiddleware = [
+        SecurityHeaders::class,
+    ];
 
-    public function setUp()
+    protected function setUp(): void
     {
+        $this->guardAgainstMissingEnv();
+
         parent::setUp();
+
+        $this->registerCustomMacros();
+
+        $this->withoutMiddleware($this->globallyDisabledMiddleware);
+
+        $this->initializeSettings();
     }
 
-    public function tearDown()
+    private function guardAgainstMissingEnv(): void
     {
-        //Artisan::call('migrate:reset');
-        parent::tearDown();
+        if (!file_exists(realpath(__DIR__ . '/../') . '/.env.testing')) {
+            throw new RuntimeException(
+                '.env.testing file does not exist. Aborting to avoid wiping your local database.'
+            );
+        }
     }
 }

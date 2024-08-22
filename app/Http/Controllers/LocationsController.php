@@ -1,20 +1,17 @@
 <?php
+
 namespace App\Http\Controllers;
 
-use Input;
-use Lang;
-use App\Models\Location;
-use Redirect;
-use App\Models\Setting;
-use App\Models\User;
+use App\Http\Requests\ImageUploadRequest;
+use App\Models\Actionlog;
 use App\Models\Asset;
-use DB;
-use Str;
-use Validator;
-use View;
-use Auth;
-use Symfony\Component\HttpFoundation\JsonResponse;
-
+use App\Models\Location;
+use App\Models\User;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Http\RedirectResponse;
+use \Illuminate\Contracts\View\View;
 /**
  * This controller handles all actions related to Locations for
  * the Snipe-IT Asset Management application.
@@ -23,410 +20,384 @@ use Symfony\Component\HttpFoundation\JsonResponse;
  */
 class LocationsController extends Controller
 {
-
     /**
-    * Returns a view that invokes the ajax tables which actually contains
-    * the content for the locations listing, which is generated in getDatatable.
-    *
-    * @author [A. Gianotto] [<snipe@snipe.net>]
-    * @see LocationsController::getDatatable() method that generates the JSON response
-    * @since [v1.0]
-    * @return View
-    */
-    public function getIndex()
+     * Returns a view that invokes the ajax tables which actually contains
+     * the content for the locations listing, which is generated in getDatatable.
+     *
+     * @author [A. Gianotto] [<snipe@snipe.net>]
+     * @see LocationsController::getDatatable() method that generates the JSON response
+     * @since [v1.0]
+     */
+    public function index() : View
     {
         // Grab all the locations
-        $locations = Location::orderBy('created_at', 'DESC')->with('parent', 'assets', 'assignedassets')->get();
-
+        $this->authorize('view', Location::class);
         // Show the page
-        return View::make('locations/index', compact('locations'));
+        return view('locations/index');
     }
 
-
     /**
-    * Returns a form view used to create a new location.
-    *
-    * @author [A. Gianotto] [<snipe@snipe.net>]
-    * @see LocationsController::postCreate() method that validates and stores the data
-    * @since [v1.0]
-    * @return View
-    */
-    public function getCreate()
+     * Returns a form view used to create a new location.
+     *
+     * @author [A. Gianotto] [<snipe@snipe.net>]
+     * @see LocationsController::postCreate() method that validates and stores the data
+     * @since [v1.0]
+     */
+    public function create() : View
     {
-        $locations = Location::orderBy('name', 'ASC')->get();
+        $this->authorize('create', Location::class);
 
-        $location_options_array = Location::getLocationHierarchy($locations);
-        $location_options = Location::flattenLocationsArray($location_options_array);
-        $location_options = array('' => 'Top Level') + $location_options;
-
-        return View::make('locations/edit')
-        ->with('location_options', $location_options)
-        ->with('location', new Location);
+        return view('locations/edit')
+            ->with('item', new Location);
     }
 
-
     /**
-    * Validates and stores a new location.
-    *
-    * @todo Check if a Form Request would work better here.
-    * @author [A. Gianotto] [<snipe@snipe.net>]
-    * @see LocationsController::getCreate() method that makes the form
-    * @since [v1.0]
-    * @return Redirect
-    */
-    public function postCreate()
+     * Validates and stores a new location.
+     *
+     * @todo Check if a Form Request would work better here.
+     * @author [A. Gianotto] [<snipe@snipe.net>]
+     * @see LocationsController::getCreate() method that makes the form
+     * @since [v1.0]
+     * @param ImageUploadRequest $request
+     */
+    public function store(ImageUploadRequest $request) : RedirectResponse
     {
-
-    // create a new location instance
+        $this->authorize('create', Location::class);
         $location = new Location();
+        $location->name = $request->input('name');
+        $location->parent_id = $request->input('parent_id', null);
+        $location->currency = $request->input('currency', '$');
+        $location->address = $request->input('address');
+        $location->address2 = $request->input('address2');
+        $location->city = $request->input('city');
+        $location->state = $request->input('state');
+        $location->country = $request->input('country');
+        $location->zip = $request->input('zip');
+        $location->ldap_ou = $request->input('ldap_ou');
+        $location->manager_id = $request->input('manager_id');
+        $location->user_id = auth()->id();
+        $location->phone = request('phone');
+        $location->fax = request('fax');
 
-
-    // Save the location data
-        $location->name             = e(Input::get('name'));
-        if (Input::get('parent_id')=='') {
-            $location->parent_id        = null;
-        } else {
-            $location->parent_id        = e(Input::get('parent_id'));
-        }
-        $location->currency             = e(Input::get('currency', '$'));
-        $location->address          = e(Input::get('address'));
-        $location->address2             = e(Input::get('address2'));
-        $location->city             = e(Input::get('city'));
-        $location->state            = e(Input::get('state'));
-        $location->country          = e(Input::get('country'));
-        $location->zip              = e(Input::get('zip'));
-        $location->user_id          = Auth::user()->id;
+        $location = $request->handleImages($location);
 
         if ($location->save()) {
-            // Redirect to the new location  page
-            return redirect()->to("admin/settings/locations")->with('success', trans('admin/locations/message.create.success'));
+            return redirect()->route('locations.index')->with('success', trans('admin/locations/message.create.success'));
         }
 
         return redirect()->back()->withInput()->withErrors($location->getErrors());
-
     }
 
     /**
-    * Validates and stores a new location created via the Create Asset form modal.
-    *
-    * @todo Check if a Form Request would work better here.
-    * @author [A. Gianotto] [<snipe@snipe.net>]
-    * @see AssetsController::getCreate() method that makes the form
-    * @since [v1.0]
-    * @return String JSON
-    */
-    public function store()
+     * Makes a form view to edit location information.
+     *
+     * @author [A. Gianotto] [<snipe@snipe.net>]
+     * @see LocationsController::postCreate() method that validates and stores
+     * @param int $locationId
+     * @since [v1.0]
+     */
+    public function edit($locationId = null) : View | RedirectResponse
     {
-
-        $new['currency']=Setting::first()->default_currency;
-
-        // create a new location instance
-        $location = new Location();
-
-        // Save the location data
-        $location->name               = e(Input::get('name'));
-        $location->currency           =  Setting::first()->default_currency; //e(Input::get('currency'));
-        $location->address            = ''; //e(Input::get('address'));
-        // $location->address2			= e(Input::get('address2'));
-        $location->city               = e(Input::get('city'));
-        $location->state          = '';//e(Input::get('state'));
-        $location->country            = e(Input::get('country'));
-        // $location->zip    			= e(Input::get('zip'));
-        $location->user_id          = Auth::user()->id;
-
-        // Was the location created?
-        if ($location->save()) {
-            return JsonResponse::create($location);
-
+        $this->authorize('update', Location::class);
+        // Check if the location exists
+        if (is_null($item = Location::find($locationId))) {
+            return redirect()->route('locations.index')->with('error', trans('admin/locations/message.does_not_exist'));
         }
 
-        // failure
-        $errors = $location->errors();
-        return JsonResponse::create(["error" => "Failed validation: ".print_r($location->getErrors(), true)], 500);
-
+        return view('locations/edit', compact('item'));
     }
 
-
     /**
-    * Makes a form view to edit location information.
-    *
-    * @author [A. Gianotto] [<snipe@snipe.net>]
-    * @see LocationsController::postCreate() method that validates and stores
-    * @param int $locationId
-    * @since [v1.0]
-    * @return View
-    */
-    public function getEdit($locationId = null)
+     * Validates and stores updated location data from edit form.
+     *
+     * @author [A. Gianotto] [<snipe@snipe.net>]
+     * @see LocationsController::getEdit() method that makes the form view
+     * @param ImageUploadRequest $request
+     * @param int $locationId
+     * @since [v1.0]
+     */
+    public function update(ImageUploadRequest $request, $locationId = null) : RedirectResponse
     {
+        $this->authorize('update', Location::class);
         // Check if the location exists
         if (is_null($location = Location::find($locationId))) {
-            return redirect()->to('admin/settings/locations')->with('error', trans('admin/locations/message.does_not_exist'));
-        }
-
-        // Show the page
-        $locations = Location::orderBy('name', 'ASC')->get();
-        $location_options_array = Location::getLocationHierarchy($locations);
-        $location_options = Location::flattenLocationsArray($location_options_array);
-        $location_options = array('' => 'Top Level') + $location_options;
-
-        return View::make('locations/edit', compact('location'))->with('location_options', $location_options);
-    }
-
-
-    /**
-    * Validates and stores updated location data from edit form.
-    *
-    * @author [A. Gianotto] [<snipe@snipe.net>]
-    * @see LocationsController::getEdit() method that makes the form view
-    * @param int $locationId
-    * @since [v1.0]
-    * @return Redirect
-    */
-    public function postEdit($locationId = null)
-    {
-        // Check if the location exists
-        if (is_null($location = Location::find($locationId))) {
-            // Redirect to the blogs management page
-            return redirect()->to('admin/settings/locations')->with('error', trans('admin/locations/message.does_not_exist'));
+            return redirect()->route('locations.index')->with('error', trans('admin/locations/message.does_not_exist'));
         }
 
         // Update the location data
-        $location->name         = e(Input::get('name'));
-        if (Input::get('parent_id')=='') {
-            $location->parent_id        = null;
-        } else {
-            $location->parent_id        = e(Input::get('parent_id', ''));
-        }
-        $location->currency             = e(Input::get('currency', '$'));
-        $location->address          = e(Input::get('address'));
-        $location->address2             = e(Input::get('address2'));
-        $location->city             = e(Input::get('city'));
-        $location->state            = e(Input::get('state'));
-        $location->country      = e(Input::get('country'));
-        $location->zip            = e(Input::get('zip'));
+        $location->name = $request->input('name');
+        $location->parent_id = $request->input('parent_id', null);
+        $location->currency = $request->input('currency', '$');
+        $location->address = $request->input('address');
+        $location->address2 = $request->input('address2');
+        $location->city = $request->input('city');
+        $location->state = $request->input('state');
+        $location->country = $request->input('country');
+        $location->zip = $request->input('zip');
+        $location->phone = request('phone');
+        $location->fax = request('fax');
+        $location->ldap_ou = $request->input('ldap_ou');
+        $location->manager_id = $request->input('manager_id');
 
-        // Was the asset created?
+        $location = $request->handleImages($location);
+
         if ($location->save()) {
-          // Redirect to the saved location page
-            return redirect()->to("admin/settings/locations/")->with('success', trans('admin/locations/message.update.success'));
+            return redirect()->route('locations.index')->with('success', trans('admin/locations/message.update.success'));
         }
 
-        // Redirect to the location management page
         return redirect()->back()->withInput()->withInput()->withErrors($location->getErrors());
-
     }
 
     /**
-    * Validates and deletes selected location.
-    *
-    * @author [A. Gianotto] [<snipe@snipe.net>]
-    * @param int $locationId
-    * @since [v1.0]
-    * @return Redirect
-    */
-    public function getDelete($locationId)
+     * Validates and deletes selected location.
+     *
+     * @author [A. Gianotto] [<snipe@snipe.net>]
+     * @param int $locationId
+     * @since [v1.0]
+     */
+    public function destroy($locationId) : RedirectResponse
     {
-        // Check if the location exists
+        $this->authorize('delete', Location::class);
         if (is_null($location = Location::find($locationId))) {
-            // Redirect to the blogs management page
-            return redirect()->to('admin/settings/locations')->with('error', trans('admin/locations/message.not_found'));
+            return redirect()->to(route('locations.index'))->with('error', trans('admin/locations/message.does_not_exist'));
         }
 
-
-        if ($location->users->count() > 0) {
-            return redirect()->to('admin/settings/locations')->with('error', trans('admin/locations/message.assoc_users'));
-        } elseif ($location->childLocations->count() > 0) {
-            return redirect()->to('admin/settings/locations')->with('error', trans('admin/locations/message.assoc_child_loc'));
-        } elseif ($location->assets->count() > 0) {
-            return redirect()->to('admin/settings/locations')->with('error', trans('admin/locations/message.assoc_assets'));
-        } elseif ($location->assignedassets->count() > 0) {
-            return redirect()->to('admin/settings/locations')->with('error', trans('admin/locations/message.assoc_assets'));
-        } else {
-            $location->delete();
-            return redirect()->to('admin/settings/locations')->with('success', trans('admin/locations/message.delete.success'));
+        if ($location->users()->count() > 0) {
+            return redirect()->to(route('locations.index'))->with('error', trans('admin/locations/message.assoc_users'));
+        } elseif ($location->children()->count() > 0) {
+            return redirect()->to(route('locations.index'))->with('error', trans('admin/locations/message.assoc_child_loc'));
+        } elseif ($location->assets()->count() > 0) {
+            return redirect()->to(route('locations.index'))->with('error', trans('admin/locations/message.assoc_assets'));
+        } elseif ($location->assignedassets()->count() > 0) {
+            return redirect()->to(route('locations.index'))->with('error', trans('admin/locations/message.assoc_assets'));
         }
 
+        if ($location->image) {
+            try {
+                Storage::disk('public')->delete('locations/'.$location->image);
+            } catch (\Exception $e) {
+                Log::error($e);
+            }
+        }
+        $location->delete();
 
-
+        return redirect()->to(route('locations.index'))->with('success', trans('admin/locations/message.delete.success'));
     }
 
-
     /**
-    * Returns a view that invokes the ajax tables which actually contains
-    * the content for the locations detail page.
-    *
-    * @author [A. Gianotto] [<snipe@snipe.net>]
-    * @see LocationsController::getDataViewUsers() method that returns JSON for location users
-    * @see LocationsController::getDataViewAssets() method that returns JSON for location assets
-    * @param int $locationId
-    * @since [v1.0]
-    * @return View
-    */
-    public function getView($locationId = null)
+     * Returns a view that invokes the ajax tables which actually contains
+     * the content for the locations detail page.
+     *
+     * @author [A. Gianotto] [<snipe@snipe.net>]
+     * @param int $id
+     * @since [v1.0]
+     */
+    public function show($id = null) : View | RedirectResponse
     {
-        $location = Location::find($locationId);
+        $location = Location::withCount('assignedAssets as assigned_assets_count')
+            ->withCount('assets as assets_count')
+            ->withCount('rtd_assets as rtd_assets_count')
+            ->withCount('children as children_count')
+            ->withCount('users as users_count')
+            ->withTrashed()
+            ->find($id);
 
         if (isset($location->id)) {
-                return View::make('locations/view', compact('location'));
-        } else {
-            // Prepare the error message
-            $error = trans('admin/locations/message.does_not_exist', compact('id'));
-
-            // Redirect to the user management page
-            return redirect()->route('locations')->with('error', $error);
+            return view('locations/view', compact('location'));
         }
+
+        return redirect()->route('locations.index')->with('error', trans('admin/locations/message.does_not_exist'));
+    }
+
+    public function print_assigned($id) : View | RedirectResponse
+    {
+
+        if ($location = Location::where('id', $id)->first()) {
+            $parent = Location::where('id', $location->parent_id)->first();
+            $manager = User::where('id', $location->manager_id)->first();
+            $users = User::where('location_id', $id)->with('company', 'department', 'location')->get();
+            $assets = Asset::where('assigned_to', $id)->where('assigned_type', Location::class)->with('model', 'model.category')->get();
+            return view('locations/print')->with('assets', $assets)->with('users', $users)->with('location', $location)->with('parent', $parent)->with('manager', $manager);
+
+        }
+
+        return redirect()->route('locations.index')->with('error', trans('admin/locations/message.does_not_exist'));
+
 
 
     }
 
 
     /**
-    * Returns the JSON response to populate the bootstrap tables on the locationa view.
-    *
-    * @author [A. Gianotto] [<snipe@snipe.net>]
-    * @see LocationsController::getIndex() method that returns JSON for location index
-    * @since [v1.0]
-    * @return View
-    */
-    public function getDatatable()
+     * Returns a view that presents a form to clone a location.
+     *
+     * @author [A. Gianotto] [<snipe@snipe.net>]
+     * @param int $locationId
+     * @since [v6.0.14]
+     */
+    public function getClone($locationId = null) : View | RedirectResponse
     {
-        $locations = Location::select(array('locations.id','locations.name','locations.address','locations.address2','locations.city','locations.state','locations.zip','locations.country','locations.parent_id','locations.currency'))->with('assets');
+        $this->authorize('create', Location::class);
 
-
-        if (Input::has('search')) {
-            $locations = $locations->TextSearch(e(Input::get('search')));
+        // Check if the asset exists
+        if (is_null($location_to_clone = Location::find($locationId))) {
+            // Redirect to the asset management page
+            return redirect()->route('licenses.index')->with('error', trans('admin/locations/message.does_not_exist'));
         }
 
-        if (Input::has('offset')) {
-            $offset = e(Input::get('offset'));
-        } else {
-            $offset = 0;
-        }
+        $location = clone $location_to_clone;
 
-        if (Input::has('limit')) {
-            $limit = e(Input::get('limit'));
-        } else {
-            $limit = 50;
-        }
+        // unset these values
+        $location->id = null;
+        $location->image = null;
 
-        $order = Input::get('order') === 'asc' ? 'asc' : 'desc';
-
-
-
-        switch (Input::get('sort')) {
-            case 'parent':
-                $locations = $locations->OrderParent($order);
-                break;
-            default:
-                $allowed_columns = ['id','name','address','city','state','country','currency'];
-
-                $sort = in_array(Input::get('sort'), $allowed_columns) ? Input::get('sort') : 'created_at';
-                $locations = $locations->orderBy($sort, $order);
-                break;
-        }
-
-
-        $locationsCount = $locations->count();
-        $locations = $locations->skip($offset)->take($limit)->get();
-
-        $rows = array();
-
-        foreach ($locations as $location) {
-            $actions = '<nobr><a href="'.route('update/location', $location->id).'" class="btn btn-warning btn-sm" style="margin-right:5px;"><i class="fa fa-pencil icon-white"></i></a><a data-html="false" class="btn delete-asset btn-danger btn-sm" data-toggle="modal" href="'.route('delete/location', $location->id).'" data-content="'.trans('admin/locations/message.delete.confirm').'" data-title="'.trans('general.delete').' '.htmlspecialchars($location->name).'?" onClick="return false;"><i class="fa fa-trash icon-white"></i></a></nobr>';
-
-            $rows[] = array(
-                'id'            => $location->id,
-                'name'          => (string)link_to('admin/settings/locations/'.$location->id.'/view', e($location->name)),
-                'parent'        => ($location->parent) ? e($location->parent->name) : '',
-              //  'assets'        => ($location->assets->count() + $location->assignedassets->count()),
-                'assets_default' => $location->assignedassets->count(),
-                'assets_checkedout' => $location->assets->count(),
-                'address'       => ($location->address) ? e($location->address): '',
-                'city'          => e($location->city),
-                'state'         => e($location->state),
-                'country'       => e($location->country),
-                'currency'      => e($location->currency),
-                'actions'       => $actions
-            );
-        }
-
-        $data = array('total' => $locationsCount, 'rows' => $rows);
-
-        return $data;
-
+        return view('locations/edit')
+            ->with('item', $location);
     }
 
 
     /**
-    * Returns a JSON response that contains the users association with the
-    * selected location, to be used by the location detail view.
-    *
-    * @author [A. Gianotto] [<snipe@snipe.net>]
-    * @see LocationsController::getView() method that creates the display view
-    * @param int $locationId
-    * @since [v1.8]
-    * @return View
-    */
-    public function getDataViewUsers($locationID)
+     * Restore a given Asset Model (mark as un-deleted)
+     *
+     * @author [A. Gianotto] [<snipe@snipe.net>]
+     * @since [v1.0]
+     * @param int $id
+     */
+    public function postRestore($id) : RedirectResponse
     {
-        $location = Location::find($locationID);
-        $users = User::where('location_id', '=', $location->id);
+        $this->authorize('create', Location::class);
 
-        if (Input::has('search')) {
-            $users = $users->TextSearch(e(Input::get('search')));
+        if ($location = Location::withTrashed()->find($id)) {
+
+            if ($location->deleted_at == '') {
+                return redirect()->back()->with('error', trans('general.not_deleted', ['item_type' => trans('general.location')]));
+            }
+
+            if ($location->restore()) {
+                $logaction = new Actionlog();
+                $logaction->item_type = Location::class;
+                $logaction->item_id = $location->id;
+                $logaction->created_at = date('Y-m-d H:i:s');
+                $logaction->user_id = auth()->id();
+                $logaction->logaction('restore');
+
+                return redirect()->route('locations.index')->with('success', trans('admin/locations/message.restore.success'));
+            }
+
+            // Check validation
+            return redirect()->back()->with('error', trans('general.could_not_restore', ['item_type' => trans('general.location'), 'error' => $location->getErrors()->first()]));
         }
 
-        $users = $users->get();
-        $rows = array();
+        return redirect()->back()->with('error', trans('admin/models/message.does_not_exist'));
 
-        foreach ($users as $user) {
-            $rows[] = array(
-              'name' => (string)link_to('/admin/users/'.$user->id.'/view', e($user->fullName()))
-              );
+    }
+    public function print_all_assigned($id) : View | RedirectResponse
+    {
+        if ($location = Location::where('id', $id)->first()) {
+            $parent = Location::where('id', $location->parent_id)->first();
+            $manager = User::where('id', $location->manager_id)->first();
+            $users = User::where('location_id', $id)->with('company', 'department', 'location')->get();
+            $assets = Asset::where('location_id', $id)->with('model', 'model.category')->get();
+            return view('locations/print')->with('assets', $assets)->with('users', $users)->with('location', $location)->with('parent', $parent)->with('manager', $manager);
+
         }
-
-        $data = array('total' => $users->count(), 'rows' => $rows);
-
-        return $data;
+        return redirect()->route('locations.index')->with('error', trans('admin/locations/message.does_not_exist'));
     }
 
 
     /**
-    * Returns a JSON response that contains the assets association with the
-    * selected location, to be used by the location detail view.
-    *
-    * @todo This is broken for accessories and consumables.
-    * @todo This is a very naive implementation. Should clean this up with query scopes.
-    * @author [A. Gianotto] [<snipe@snipe.net>]
-    * @see LocationsController::getView() method that creates the display view
-    * @param int $locationID
-    * @since [v1.8]
-    * @return View
-    */
-    public function getDataViewAssets($locationID)
+     * Returns a view that allows the user to bulk delete locations
+     *
+     * @author [A. Gianotto] [<snipe@snipe.net>]
+     * @since [v6.3.1]
+     */
+    public function postBulkDelete(Request $request) : View | RedirectResponse
     {
-        $location = Location::find($locationID)->load('assignedassets.model');
-        $assets = Asset::AssetsByLocation($location);
+        $locations_raw_array = $request->input('ids');
 
-        if (Input::has('search')) {
-            $assets = $assets->TextSearch(e(Input::get('search')));
+        // Make sure some IDs have been selected
+        if ((is_array($locations_raw_array)) && (count($locations_raw_array) > 0)) {
+            $locations = Location::whereIn('id', $locations_raw_array)
+                ->withCount('assignedAssets as assigned_assets_count')
+                ->withCount('assets as assets_count')
+                ->withCount('rtd_assets as rtd_assets_count')
+                ->withCount('children as children_count')
+                ->withCount('users as users_count')->get();
+
+                $valid_count = 0;
+                foreach ($locations as $location) {
+                    if ($location->isDeletable()) {
+                        $valid_count++;
+                    }
+                }
+                return view('locations/bulk-delete', compact('locations'))->with('valid_count', $valid_count);
         }
 
-        $assets = $assets->get();
+        return redirect()->route('models.index')
+            ->with('error', 'You must select at least one model to edit.');
+    }
 
-        $rows = array();
+    /**
+     * Checks that locations can be deleted and deletes them if they can
+     *
+     * @author [A. Gianotto] [<snipe@snipe.net>]
+     * @since [v6.3.1]
 
-        foreach ($assets as $asset) {
-            $rows[] = array(
-            'name' => (string)link_to(config('app.url').'/hardware/'.$asset->id.'/view', e($asset->showAssetName())),
-            'asset_tag' => e($asset->asset_tag),
-            'serial' => e($asset->serial),
-            'model' => e($asset->model->name),
-            );
-        }
+     */
+    public function postBulkDeleteStore(Request $request) : RedirectResponse
+    {
+        $locations_raw_array = $request->input('ids');
 
-        $data = array('total' => $assets->count(), 'rows' => $rows);
-        return $data;
+        if ((is_array($locations_raw_array)) && (count($locations_raw_array) > 0)) {
+            $locations = Location::whereIn('id', $locations_raw_array)
+                ->withCount('assignedAssets as assigned_assets_count')
+                ->withCount('assets as assets_count')
+                ->withCount('rtd_assets as rtd_assets_count')
+                ->withCount('children as children_count')
+                ->withCount('users as users_count')->get();
+
+            $success_count = 0;
+            $error_count = 0;
+
+            foreach ($locations as $location) {
+
+                // Can we delete this location?
+                if ($location->isDeletable()) {
+                    $location->delete();
+                    $success_count++;
+                } else {
+                    $error_count++;
+                }
+            }
+
+            Log::debug('Success count: '.$success_count);
+            Log::debug('Error count: '.$error_count);
+            // Complete success
+            if ($success_count == count($locations_raw_array)) {
+                return redirect()
+                    ->route('locations.index')
+                    ->with('success', trans_choice('general.bulk.delete.success', $success_count,
+                        ['object_type' => trans_choice('general.location_plural', $success_count), 'count' => $success_count]
+                    ));
+            }
+
+            // Partial success
+            if ($error_count > 0) {
+                return redirect()
+                    ->route('locations.index')
+                    ->with('warning', trans('general.bulk.delete.partial',
+                        ['success' => $success_count, 'error' => $error_count, 'object_type' => trans('general.locations')]
+                    ));
+                }
+            }
+
+
+        // Nothing was selected - return to the index
+        return redirect()
+            ->route('locations.index')
+            ->with('error', trans('general.bulk.nothing_selected',
+                ['object_type' => trans('general.locations')]
+            ));
 
     }
 }

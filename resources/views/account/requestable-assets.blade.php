@@ -1,8 +1,7 @@
 @extends('layouts/default')
 
 @section('title0')
-  {{ trans('admin/hardware/general.requestable') }}
-  {{ trans('general.assets') }}
+  {{ trans('general.requestable_items') }}
 @stop
 
 {{-- Page title --}}
@@ -13,86 +12,186 @@
 {{-- Page content --}}
 @section('content')
 
-
 <div class="row">
     <div class="col-md-12">
 
-        <div class="box box-default">
-            <div class="box-body">
 
-                @if ($assets->count() > 0)
+        @if (($assets->count() < 1) && ($models->count() < 1))
 
-                <div class="table-responsive">
-                <table class="table table-striped">
-
-                    <thead>
-                        <tr role="row">                            
-                            <th class="col-md-3" bSortable="true">{{ trans('admin/hardware/table.asset_model') }}</th>
-                            <th class="col-md-3" bSortable="true">{{ trans('admin/hardware/table.serial') }}</th>
-                            <th class="col-md-2" bSortable="true">{{ trans('admin/hardware/table.location') }}</th>
-                            <th class="col-md-2" bSortable="true">{{ trans('admin/hardware/table.status') }}</th>
-                            <th class="col-md-2" bSortable="true">{{ trans('admin/hardware/form.expected_checkin') }}</th>
-                            <th class="col-md-1 actions" bSortable="false">{{ trans('table.actions') }}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-
-                        @foreach ($assets as $asset)
-                        <tr>
-                            <td>{{ $asset->model->name }}</td>
-
-                            @if (\App\Models\Setting::getSettings()->display_asset_name)
-                                <td>{{ $asset->name }}</td>
-                            @endif
-
-                            <td>{{ $asset->serial }}</td>
-
-
-
-                            <td>
-                                @if ($asset->assigneduser && $asset->assetloc)
-                                        {{ $asset->assetloc->name }}
-                                @elseif ($asset->defaultLoc)
-                                        {{ $asset->defaultLoc->name }}
-
-                                @endif
-
-                            </td>
-                             @if ($asset->assigned_to != '' && $asset->assigned_to > 0)
-                                <td>Checked out</td>
-                            @else
-                            <td>{{ trans('admin/hardware/general.requestable') }}</td>
-                            @endif
-                            
-
-                            <td>{{ $asset->expected_checkin }}</td>
-                            
-                            
-                            <td>
-                                <a href="{{ route('account/request-asset', $asset->id) }}" class="btn btn-info btn-sm" title="{{ trans('button.request') }}">{{ trans('button.request') }}</a>
-                            </td>
-
-                        </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-
-                @else
-                <div class="col-md-12">
-                    <div class="alert alert-info alert-block">
-                        <i class="fa fa-info-circle"></i>
-                        {{ trans('general.no_results') }}
-                    </div>
+            <div class="col-md-12">
+                <div class="alert alert-info fade in">
+                    <i class="fas fa-info-circle faa-pulse animated"></i>
+                    <strong>{{ trans('general.notification_info') }}: </strong>
+                    {{ trans('general.no_requestable') }}
                 </div>
+            </div>
 
+        @else
+        <div class="nav-tabs-custom">
+            <ul class="nav nav-tabs">
+                @if ($assets->count() > 0)
+                <li class="active">
+                    <a href="#assets" data-toggle="tab" title="{{ trans('general.assets') }}">{{ trans('general.assets') }}
+                        <badge class="badge badge-secondary"> {{ $assets->count()}}</badge>
+                    </a>               
+                </li>
+                @endif
+                @if ($models->count() > 0)
+                <li>
+                    <a href="#models" data-toggle="tab" title="{{ trans('general.asset_models') }}">{{ trans('general.asset_models') }}
+                        <badge class="badge badge-secondary"> {{ $models->count()}}</badge>
+                    </a>                   
+                </li>
+                @endif
+            </ul>
+            <div class="tab-content">
+                @if ($assets->count() > 0)
+                <div class="tab-pane fade in active" id="assets">
+                    <div class="row">
+                        <div class="col-md-12">
+                                <div class="table-responsive">
+                                    <table
+                                        data-click-to-select="true"
+                                        data-cookie-id-table="requestableAssetsListingTable"
+                                        data-pagination="true"
+                                        data-id-table="requestableAssetsListingTable"
+                                        data-search="true"
+                                        data-side-pagination="server"
+                                        data-show-columns="true"
+                                        data-show-export="false"
+                                        data-show-footer="false"
+                                        data-show-refresh="true"
+                                        data-sort-order="asc"
+                                        data-sort-name="name"
+                                        data-toolbar="#assetsBulkEditToolbar"
+                                        data-bulk-button-id="#bulkAssetEditButton"
+                                        data-bulk-form-id="#assetsBulkForm"
+                                        id="assetsListingTable"
+                                        class="table table-striped snipe-table"
+                                        data-url="{{ route('api.assets.requestable', ['requestable' => true]) }}">
 
+                                        <thead>
+                                            <tr>
+                                                <th class="col-md-1" data-field="image" data-formatter="imageFormatter" data-sortable="true">{{ trans('general.image') }}</th>
+                                                <th class="col-md-2" data-field="asset_tag" data-sortable="true" >{{ trans('general.asset_tag') }}</th>                                                
+                                                <th class="col-md-2" data-field="model" data-sortable="true">{{ trans('admin/hardware/table.asset_model') }}</th>
+                                                <th class="col-md-2" data-field="model_number" data-sortable="true">{{ trans('admin/models/table.modelnumber') }}</th>
+                                                <th class="col-md-2" data-field="name" data-sortable="true">{{ trans('admin/hardware/form.name') }}</th>
+                                                <th class="col-md-3" data-field="serial" data-sortable="true">{{ trans('admin/hardware/table.serial') }}</th>
+                                                <th class="col-md-2" data-field="location" data-sortable="true">{{ trans('admin/hardware/table.location') }}</th>
+                                                <th class="col-md-2" data-field="status" data-sortable="true">{{ trans('admin/hardware/table.status') }}</th>
+                                                <th class="col-md-2" data-field="expected_checkin" data-formatter="dateDisplayFormatter" data-sortable="true">{{ trans('admin/hardware/form.expected_checkin') }}</th>
+
+                                                @foreach(\App\Models\CustomField::get() as $field)
+                                                    @if (($field->field_encrypted=='0') && ($field->show_in_requestable_list=='1'))
+                                                        <th class="col-md-2" data-field="custom_fields.{{ $field->db_column }}" data-sortable="true">{{ $field->name }}</th>
+                                                    @endif
+                                                @endforeach
+                                                <th class="col-md-1" data-formatter="assetRequestActionsFormatter" data-field="actions" data-sortable="false">{{ trans('table.actions') }}</th>
+                                            </tr>
+                                        </thead>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 @endif
 
-            </div>
-        </div>
-    </div>
-</div>
+                @if ($models->count() > 0)
+                <div class="tab-pane fade in {{ ($assets->count() == 0) ? 'active' : '' }}" id="models">
+                    <div class="row">
+                        <div class="col-md-12">
+                                <table
+                                        name="requested-assets"
+                                        data-toolbar="#toolbar"
+                                        class="table table-striped snipe-table"
+                                        id="table"
+                                        data-advanced-search="true"
+                                        data-id-table="advancedTable"
+                                        data-cookie-id-table="requestableAssets">
+                                <thead>
+                                    <tr role="row">
+                                        <th class="col-md-1" data-sortable="true">{{ trans('general.image') }}</th>
+                                        <th class="col-md-6" data-sortable="true">{{ trans('admin/hardware/table.asset_model') }}</th>
+                                        <th class="col-md-3" data-sortable="true">{{ trans('admin/accessories/general.remaining') }}</th>
 
+                                        <th class="col-md-2 actions" data-sortable="false">{{ trans('table.actions') }}</th>
+                                    </tr>
+                                </thead>
 
+                                <tbody>
+                                    @foreach($models as $requestableModel)
+                                        <tr>
 
+                                                <td>
+
+                                                    @if ($requestableModel->image)
+                                                        <a href="{{ config('app.url') }}/uploads/models/{{ $requestableModel->image }}" data-toggle="lightbox" data-type="image">
+                                                            <img src="{{ config('app.url') }}/uploads/models/{{ $requestableModel->image }}" style="max-height: {{ $snipeSettings->thumbnail_max_h }}px; width: auto;" class="img-responsive">
+                                                        </a>
+                                                    @endif
+
+                                                </td>
+
+                                                <td>
+                                                    @can('view', \App\Models\AssetModel::class)
+                                                        <a href="{{ route('models.show', ['model' => $requestableModel->id]) }}">{{ $requestableModel->name }}</a>
+                                                    @else
+                                                        {{ $requestableModel->name }}
+                                                    @endcan
+                                                </td>
+
+                                                <td>{{$requestableModel->assets->where('requestable', '1')->count()}}</td>
+
+                                                <td>
+                                                    <form  action="{{ route('account/request-item', ['itemType' => 'asset_model', 'itemId' => $requestableModel->id])}}" method="POST" accept-charset="utf-8">
+                                                        {{ csrf_field() }}
+                                                    <input type="text" style="width: 70px; margin-right: 10px;" class="form-control pull-left" name="request-quantity" value="" placeholder="{{ trans('general.qty') }}">
+                                                    @if ($requestableModel->isRequestedBy(Auth::user()))
+                                                        {{ Form::submit(trans('button.cancel'), ['class' => 'btn btn-danger btn-sm'])}}
+                                                    @else
+                                                        {{ Form::submit(trans('button.request'), ['class' => 'btn btn-primary btn-sm'])}}
+                                                    @endif
+                                                    </form>
+                                                </td>
+                                        </tr>
+
+                                    @endforeach
+                                </tbody>
+                            </table>
+
+                        </div>
+                    </div>
+                </div>
+                @endif
+
+            </div> <!-- .tab-content-->
+        </div> <!-- .nav-tabs-custom -->
+
+        @endif
+    </div> <!-- .col-md-12> -->
+</div> <!-- .row -->
 @stop
+
+
+@section('moar_scripts')
+    @include ('partials.bootstrap-table', [
+        'exportFile' => 'requested-export',
+        'search' => true,
+        'clientSearch' => true,
+    ])
+
+
+    <script nonce="{{ csrf_token() }}">
+
+    $( "a[name='Request']").click(function(event) {
+        // event.preventDefault();
+        quantity = $(this).closest('td').siblings().find('input').val();
+        currentUrl = $(this).attr('href');
+        // $(this).attr('href', currentUrl + '?quantity=' + quantity);
+        // alert($(this).attr('href'));
+    });
+</script>
+@stop
+
+

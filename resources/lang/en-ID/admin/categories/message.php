@@ -3,8 +3,8 @@
 return array(
 
     'does_not_exist' => 'Kategori tidak ada.',
-    'assoc_models'	 => 'This category is currently associated with at least one model and cannot be deleted. Please update your models to no longer reference this category and try again. ',
-    'assoc_items'	 => 'This category is currently associated with at least one :asset_type and cannot be deleted. Please update your :asset_type  to no longer reference this category and try again. ',
+    'assoc_models'	 => 'Kategori ini saat ini terkait dengan setidaknya satu model dan tidak dapat dihapus. Silahkan update model Anda untuk tidak lagi tereferensi dengan kategori ini dan coba lagi. ',
+    'assoc_items'	 => 'Kategori ini saat ini terkait dengan setidaknya satu: jenis aset dan tidak dapat dihapus. Silahkan perbarui : Asset_TYPE untuk tidak lagi referensi kategori ini dan coba lagi. ',
 
     'create' => array(
         'error'   => 'Kategori gagal dibuat, silahkan coba lagi.',
@@ -13,7 +13,8 @@ return array(
 
     'update' => array(
         'error'   => 'Kategori gagal diupdate, silahkan coba lagi',
-        'success' => 'Kategori berhasil diupdate.'
+        'success' => 'Kategori berhasil diupdate.',
+        'cannot_change_category_type'   => 'You cannot change the category type once it has been created',
     ),
 
     'delete' => array(

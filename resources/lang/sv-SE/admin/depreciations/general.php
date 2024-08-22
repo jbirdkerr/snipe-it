@@ -1,12 +1,16 @@
 <?php
 
-return array(
-    'about_asset_depreciations'  			=> 'Om tillgångsavskrivningar',
-    'about_depreciations'  					=> 'You can set up asset depreciations to depreciate assets based on straight-line depreciation.',
-    'asset_depreciations'  					=> 'Asset Depreciations',
-    'create_depreciation'  					=> 'Skapa Avskrivning',
+return [
+    'about_asset_depreciations'  			=> 'Om avskrivning av tillgångar',
+    'about_depreciations'  					=> 'Du kan ställa in avskrivning av tillgångar baserat på linjär avskrivning.',
+    'asset_depreciations'  					=> 'Avskrivningar av tillgångar',
+    'create'  					            => 'Skapa avskrivningar',
     'depreciation_name'  					=> 'Avskrivningsnamn',
+    'depreciation_min'                      => 'Nuvarande värde',
     'number_of_months'  					=> 'Antal Månader',
-    'update_depreciation'  					=> 'Uppdatera Avskrivningar',
-
-);
+    'update'  					            => 'Uppdatera avskrivningar',
+    'depreciation_min'                      => 'Minsta värde efter avskrivningar',
+    'no_depreciations_warning'               => '<strong>Varning: </strong>
+                      Du har för närvarande inte några avskrivningar.
+                      Vänligen ställ in minst en avskrivning för att se avskrivningsrapporten.',
+];

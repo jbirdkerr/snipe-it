@@ -6,6 +6,7 @@
 @parent
 @stop
 
+
 @section('header_right')
     <a href="{{ URL::previous() }}" class="btn btn-primary pull-right">
         {{ trans('general.back') }}</a>
@@ -13,59 +14,60 @@
 
 {{-- Page content --}}
 @section('content')
+    <div class="row">
+        <!-- left column -->
+        <div class="col-md-7">
+            <form class="form-horizontal" method="post" action="{{ route('licenses.checkin.save', ['licenseId'=>$licenseSeat->id, 'backTo'=>$backto] ) }}" autocomplete="off">
+                {{csrf_field()}}
 
+                <div class="box box-default">
+                    <div class="box-header with-border">
+                        <h2 class="box-title"> {{ $licenseSeat->license->name }}</h2>
+                    </div>
+                    <div class="box-body">
 
-
-<div class="row form-wrapper">
-<!-- left column -->
-<div class="col-md-10 column">
-
-@if ($backto=='user')
-	<form class="form-horizontal" method="post" action="{{ route('checkin/license', array('licenseeat_id'=> $licenseseat->id, 'backto'=>'user')) }}" autocomplete="off">
-@else
-	<form class="form-horizontal" method="post" action="{{ route('checkin/license', $licenseseat->id) }}" autocomplete="off">
-@endif
-
-    <!-- CSRF Token -->
-    <input type="hidden" name="_token" value="{{ csrf_token() }}" />
-
-
-            <!-- Asset name -->
+            <!-- license name -->
             <div class="form-group">
-            <label class="col-sm-2 control-label">{{ trans('admin/hardware/form.name') }}</label>
+                <label class="col-sm-2 control-label">{{ trans('admin/hardware/form.name') }}</label>
                 <div class="col-md-6">
-                  <p class="form-control-static">{{ $licenseseat->license->name }}</p>
+                    <p class="form-control-static">{{ $licenseSeat->license->name }}</p>
                 </div>
             </div>
 
             <!-- Serial -->
             <div class="form-group">
-            <label class="col-sm-2 control-label">{{ trans('admin/hardware/form.serial') }}</label>
+                <label class="col-sm-2 control-label">{{ trans('admin/licenses/form.license_key') }}</label>
                 <div class="col-md-6">
-                  <p class="form-control-static">{{ $licenseseat->license->serial }}</p>
+                    <p class="form-control-static">
+                        @can('viewKeys', $licenseSeat->license)
+                            {{ $licenseSeat->license->serial }}
+                        @else
+                            ------------
+                        @endcan
+                        </p>
                 </div>
             </div>
 
             <!-- Note -->
-            <div class="form-group {{ $errors->has('note') ? 'error' : '' }}">
+            <div class="form-group {{ $errors->has('notes') ? 'error' : '' }}">
                 <label for="note" class="col-md-2 control-label">{{ trans('admin/hardware/form.notes') }}</label>
                 <div class="col-md-7">
-                    <textarea class="col-md-6 form-control" id="note" name="note">{{ Input::old('note', $licenseseat->note) }}</textarea>
-                    {!! $errors->first('note', '<span class="alert-msg"><i class="fa fa-times"></i> :message</span>') !!}
+                    <textarea class="col-md-6 form-control" id="notes" name="notes"></textarea>
+                    {!! $errors->first('notes', '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
                 </div>
             </div>
-            <!-- Form actions -->
-                <div class="form-group">
-                <label class="col-md-2 control-label"></label>
-                    <div class="col-md-7">
-                        <a class="btn btn-link" href="{{ route('licenses') }}">{{ trans('button.cancel') }}</a>
-                        <button type="submit" class="btn btn-success"><i class="fa fa-check icon-white"></i> {{ trans('general.checkin') }}</button>
-                    </div>
-                </div>
+                        <x-redirect_submit_options
+                                index_route="licenses.index"
+                                :button_label="trans('general.checkin')"
+                                :options="[
+                                'index' => trans('admin/hardware/form.redirect_to_all', ['type' => trans('general.licenses')]),
+                                'item' => trans('admin/hardware/form.redirect_to_type', ['type' => trans('general.license')]),
+                               ]"
+                        />
+                    </div> <!-- /.box-->
+            </form>
+        </div> <!-- /.col-md-7-->
+    </div>
 
-
-</form>
-</div>
-</div>
 
 @stop

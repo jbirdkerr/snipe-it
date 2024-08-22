@@ -1,12 +1,16 @@
 <?php
 
-return array(
-    'about_asset_depreciations'  			=> 'About Asset Depreciations',
-    'about_depreciations'  					=> 'You can set up asset depreciations to depreciate assets based on straight-line depreciation.',
-    'asset_depreciations'  					=> 'Asset Depreciations',
-    'create_depreciation'  					=> 'Create Depreciation',
-    'depreciation_name'  					=> 'Depreciation Name',
-    'number_of_months'  					=> 'Number of Months',
-    'update_depreciation'  					=> 'Update Depreciation',
-
-);
+return [
+    'about_asset_depreciations'  			=> 'Sobre depreciación de activos',
+    'about_depreciations'  					=> 'Puede configurar la depreciación de activos usando un método de línea recta.',
+    'asset_depreciations'  					=> 'Depreciación de activos',
+    'create'  					            => 'Crear depreciación',
+    'depreciation_name'  					=> 'Nombre de depreciación',
+    'depreciation_min'                      => 'Valor del piso de la depreciación',
+    'number_of_months'  					=> 'Número de meses',
+    'update'  					            => 'Actualizar Depreciación',
+    'depreciation_min'                      => 'Valor mínimo después de depreciación',
+    'no_depreciations_warning'               => '<strong>Advertencia: </strong>
+                      No tiene ninguna depreciación configurada.
+                      Por favor, configure al menos una depreciación para ver el informe de depreciación.',
+];

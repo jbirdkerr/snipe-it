@@ -1,15 +1,12 @@
 <?php
 
 return array(
-    'about_consumables_title' 			=> 'Om förbrukningsvaror',
-    'about_consumables_text'  			=> 'Förbrukningsvaror är sådant som är inköpt och kommer förbrukas över tiden. T.ex. skrivartoner eller kopieringspapper.',
-    'consumable_name'                  => 'Namn på förbrukningsvara',
-    'cost'				=> 'Inköpspris',
-    'create'                             => 'Skapa förbrukningvara',
-    'date'					=> 'Inköpsdatum',
-    'item_no'               => 'Item No.',
-    'order'					=> 'Beställningsnummer',
-    'remaining' 			             => 'Återstående',
-    'total' 			                 => 'Totalt',
+    'checkout'                          => 'Förbrukningsvaror',
+    'consumable_name'                   => 'Namn på förbrukningsvara',
+    'create'                            => 'Skapa förbrukningvara',
+    'item_no'                           => 'Artikelnummer',
+    'remaining' 			            => 'Återstående',
+    'total' 			                => 'Totalt',
     'update'                            => 'Uppdatera förbrukningsvara',
+    'inventory_warning'                 => 'The inventory of this consumable is below the minimum amount of :min_count',
 );

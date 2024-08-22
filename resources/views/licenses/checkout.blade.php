@@ -13,86 +13,110 @@
 
 {{-- Page content --}}
 @section('content')
-
-
-
-    <div class="row">
-
+<div class="row">
         <!-- left column -->
-        <div class="col-md-7">
-
-            <form class="form-horizontal" method="post" action="" autocomplete="off">
-                <!-- CSRF Token -->
-                <input type="hidden" name="_token" value="{{ csrf_token() }}" />
+    <div class="col-md-7">
+        <form class="form-horizontal" method="post" action="" autocomplete="off">
+            {{csrf_field()}}
 
             <div class="box box-default">
                 <div class="box-header with-border">
-                    <h3 class="box-title"> {{ $licenseseat->license->name }}</h3>
+                    <h2 class="box-title"> {{ $license->name }} ({{ trans('admin/licenses/message.seats_available', ['seat_count' => $license->availCount()->count()]) }})</h2>
                 </div>
                 <div class="box-body">
 
 
+                    <!-- Asset name -->
+                    <div class="form-group">
+                        <label class="col-sm-3 control-label">{{ trans('admin/hardware/form.name') }}</label>
+                        <div class="col-md-9">
+                            <p class="form-control-static">{{ $license->name }}</p>
+                        </div>
+                    </div>
+                    <!-- Category -->
+                    <div class="form-group">
+                        <label class="col-sm-3 control-label">{{ trans('general.category') }}</label>
+                        <div class="col-md-9">
+                            <p class="form-control-static">{{ $license->category->name }}</p>
+                        </div>
+                    </div>
 
-                            <!-- Asset name -->
-                            <div class="form-group">
-                            <label class="col-sm-2 control-label">{{ trans('admin/hardware/form.name') }}</label>
-                                <div class="col-md-6">
-                                  <p class="form-control-static">{{ $licenseseat->license->name }}</p>
-                                </div>
-                            </div>
+                    <!-- Serial -->
+                    <div class="form-group">
+                        <label class="col-sm-3 control-label">{{ trans('admin/licenses/form.license_key') }}</label>
+                        <div class="col-md-9">
+                            <p class="form-control-static" style="word-wrap: break-word;">
+                                @can('viewKeys', $license)
+                                    {{ $license->serial }}
+                                @else
+                                    ------------
+                                @endcan
+                            </p>
+                        </div>
+                    </div>
 
-                            <!-- Serial -->
-                            <div class="form-group">
-                            <label class="col-sm-2 control-label">{{ trans('admin/hardware/form.serial') }}</label>
-                                <div class="col-md-10">
-                                  <p class="form-control-static" style="word-wrap: break-word;">{{ $licenseseat->license->serial }}</p>
-                                </div>
-                            </div>
+                    @include ('partials.forms.checkout-selector', ['user_select' => 'true','asset_select' => 'true', 'location_select' => 'false'])
 
-                            <!-- Asset -->
-                            <div class="form-group {{ $errors->has('asset_id') ? ' has-error' : '' }}">
-                                <label for="asset_id" class="col-md-2 control-label">{{ trans('admin/licenses/form.asset') }}
-                                 </label>
+                    @include ('partials.forms.edit.user-select', ['translated_name' => trans('general.user'), 'fieldname' => 'assigned_to', 'required'=>'true'])
 
-                                <div class="col-md-10">
-                                    {{ Form::select('asset_id', $asset_list , Input::old('asset_id', $licenseseat->asset_id), array('class'=>'select2', 'style'=>'min-width:600px')) }}
-                                    {!! $errors->first('asset_id', '<span class="alert-msg"><i class="fa fa-times"></i> :message</span>') !!}
-                                </div>
-                            </div>
-
-
-                            <!-- User -->
-                            <div class="form-group {{ $errors->has('assigned_to') ? ' has-error' : '' }}">
-                                <label for="assigned_to" class="col-md-2 control-label">{{ trans('admin/hardware/form.checkout_to') }}
-                                </label>
-
-                                <div class="col-md-9">
-                                    {{ Form::select('assigned_to', $users_list , Input::old('assigned_to', $licenseseat->assigned_to), array('class'=>'select2', 'style'=>'min-width:350px')) }}
-                                    {!! $errors->first('assigned_to', '<span class="alert-msg"><i class="fa fa-times"></i> :message</span>') !!}
-
-                                    <p class="help-block">
-                                    {{ trans('admin/licenses/form.checkout_help') }}
-                                    </p>
-
-                                </div>
-                            </div>
+                    @include ('partials.forms.edit.asset-select', ['translated_name' => trans('admin/licenses/form.asset'), 'fieldname' => 'asset_id', 'style' => 'display:none;'])
 
 
-                            <!-- Note -->
-                            <div class="form-group {{ $errors->has('note') ? 'error' : '' }}">
-                                <label for="note" class="col-md-2 control-label">{{ trans('admin/hardware/form.notes') }}</label>
-                                <div class="col-md-7">
-                                    <textarea class="col-md-6 form-control" id="note" name="note">{{ Input::old('note', $licenseseat->note) }}</textarea>
-                                    {!! $errors->first('note', '<span class="alert-msg"><i class="fa fa-times"></i> :message</span>') !!}
-                                </div>
-                            </div>
+                    <!-- Note -->
+                    <div class="form-group {{ $errors->has('notes') ? 'error' : '' }}">
+                        <label for="note" class="col-md-3 control-label">{{ trans('admin/hardware/form.notes') }}</label>
+                        <div class="col-md-8">
+                            <textarea class="col-md-6 form-control" id="notes" name="notes" style="width: 100%">{{ old('note') }}</textarea>
+                            {!! $errors->first('note', '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
+                        </div>
+                    </div>
                 </div>
-                <div class="box-footer">
-                    <a class="btn btn-link" href="{{ route('licenses') }}">{{ trans('button.cancel') }}</a>
-                    <button type="submit" class="btn btn-success pull-right"><i class="fa fa-check icon-white"></i> {{ trans('general.checkout') }}</button>
-                </div>
-         </form>
-</div>
+
+
+                @if ($license->requireAcceptance() || $license->getEula() || ($snipeSettings->webhook_endpoint!=''))
+                    <div class="form-group notification-callout">
+                        <div class="col-md-8 col-md-offset-3">
+                            <div class="callout callout-info">
+
+                                @if ($license->requireAcceptance())
+                                    <i class="far fa-envelope"></i>
+                                    {{ trans('admin/categories/general.required_acceptance') }}
+                                    <br>
+                                @endif
+
+                                @if ($license->getEula())
+                                    <i class="far fa-envelope"></i>
+                                    {{ trans('admin/categories/general.required_eula') }}
+                                    <br>
+                                @endif
+
+                                @if (($license->category) && ($license->category->checkin_email))
+                                    <i class="far fa-envelope"></i>
+                                    {{ trans('admin/categories/general.checkin_email_notification') }}
+                                    <br>
+                                @endif
+
+                                @if ($snipeSettings->webhook_endpoint!='')
+                                    <i class="fab fa-slack"></i>
+                                    {{ trans('general.webhook_msg_note') }}
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+                <x-redirect_submit_options
+                        index_route="licenses.index"
+                        :button_label="trans('general.checkout')"
+                        :options="[
+                                'index' => trans('admin/hardware/form.redirect_to_all', ['type' => trans('general.licenses')]),
+                                'item' => trans('admin/hardware/form.redirect_to_type', ['type' => trans('general.license')]),
+                                'target' => trans('admin/hardware/form.redirect_to_checked_out_to'),
+                               ]"
+                />
+            </div> <!-- /.box-->
+        </form>
+    </div> <!-- /.col-md-7-->
 </div>
 
 @stop

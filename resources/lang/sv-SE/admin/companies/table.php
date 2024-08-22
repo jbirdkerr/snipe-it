@@ -1,9 +1,11 @@
 <?php
 return array(
-    'companies' => 'Companies',
-    'create'    => 'Create Company',
-    'title'     => 'Company',
-    'update'    => 'Update Company',
-    'name'      => 'Company Name',
+    'companies' => 'Företag',
+    'create'    => 'Skapa företag',
+    'email'     => 'Företagets e-postadress',
+    'title'     => 'Företag',
+    'phone'     => 'Företagstelefon',
+    'update'    => 'Uppdatera företag',
+    'name'      => 'Företagsnamn',
     'id'        => 'ID',
 );

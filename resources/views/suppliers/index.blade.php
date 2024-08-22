@@ -11,36 +11,52 @@
 
 
 @section('header_right')
-<a href="{{ route('create/supplier') }}" class="btn btn-primary pull-right"> {{ trans('general.create') }}</a>
+  @can('create', \App\Models\Supplier::class)
+    <a href="{{ route('suppliers.create') }}" class="btn btn-primary pull-right"> {{ trans('general.create') }}</a>
+  @endcan
 @stop
-
-
 
 <div class="row">
   <div class="col-md-12">
     <div class="box box-default">
       <div class="box-body">
       <div class="table-responsive">
-      <table
-      name="suppliers"
-      id="table"
-      class="table table-striped"
-      data-url="{{ route('api.suppliers.list') }}"
-      data-cookie="true"
-      data-click-to-select="true"
-      data-cookie-id-table="suppliersTable-{{ config('version.hash_version') }}">
+
+        <table
+            data-cookie-id-table="suppliersTable"
+            data-pagination="true"
+            data-id-table="suppliersTable"
+            data-search="true"
+            data-side-pagination="server"
+            data-show-columns="true"
+            data-show-fullscreen="true"
+            data-show-export="true"
+            data-show-refresh="true"
+            data-sort-order="asc"
+            id="suppliersTable"
+            class="table table-striped snipe-table"
+            data-url="{{ route('api.suppliers.index') }}"
+            data-export-options='{
+            "fileName": "export-suppliers-{{ date('Y-m-d') }}",
+            "ignoreColumn": ["actions","image","change","checkbox","checkincheckout","icon"]
+            }'>
         <thead>
           <tr>
             <th data-sortable="true" data-field="id" data-visible="false">{{ trans('admin/suppliers/table.id') }}</th>
-            <th data-sortable="true" data-field="name">{{ trans('admin/suppliers/table.name') }}</th>
+            <th data-formatter="imageFormatter" data-sortable="true" data-field="image" data-visible="false"  data-searchable="false">{{ trans('general.image') }}</th>
+            <th data-sortable="true" data-field="name" data-formatter="suppliersLinkFormatter">{{ trans('admin/suppliers/table.name') }}</th>
             <th data-sortable="true" data-field="address">{{ trans('admin/suppliers/table.address') }}</th>
             <th data-searchable="true" data-sortable="true" data-field="contact">{{ trans('admin/suppliers/table.contact') }}</th>
-            <th data-searchable="true" data-sortable="true" data-field="email">{{ trans('admin/suppliers/table.email') }}</th>
-            <th data-searchable="true" data-sortable="true" data-field="phone">{{ trans('admin/suppliers/table.phone') }}</th>
+            <th data-searchable="true" data-sortable="true" data-field="email" data-formatter="emailFormatter">{{ trans('admin/suppliers/table.email') }}</th>
+            <th data-searchable="true" data-sortable="true" data-field="phone" data-formatter="phoneFormatter">{{ trans('admin/suppliers/table.phone') }}</th>
             <th data-searchable="true" data-sortable="true" data-field="fax" data-visible="false">{{ trans('admin/suppliers/table.fax') }}</th>
-            <th data-searchable="false" data-sortable="false" data-field="assets">{{ trans('admin/suppliers/table.assets') }}</th>
-            <th data-searchable="false" data-sortable="false" data-field="licenses">{{ trans('admin/suppliers/table.licenses') }}</th>
-            <th data-switchable="false" data-searchable="false" data-sortable="false" data-field="actions">{{ trans('table.actions') }}</th>
+            <th data-sortable="true" data-field="url" data-visible="false" data-formatter="externalLinkFormatter">{{ trans('general.url') }}</th>
+            <th data-searchable="false" data-sortable="true" data-field="assets_count">{{ trans('admin/suppliers/table.assets') }}</th>
+            <th data-searchable="false" data-sortable="true" data-field="accessories_count">{{ trans('general.accessories') }}</th>
+            <th data-searchable="false" data-sortable="true" data-field="licenses_count">{{ trans('admin/suppliers/table.licenses') }}</th>
+            <th data-searchable="false" data-sortable="true" data-field="components_count">{{ trans('general.components') }}</th>
+            <th data-searchable="false" data-sortable="true" data-field="consumables_count">{{ trans('general.consumables') }}</th>
+            <th data-switchable="false" data-formatter="suppliersActionsFormatter" data-searchable="false" data-sortable="false" data-field="actions">{{ trans('table.actions') }}</th>
           </tr>
         </thead>
       </table>
@@ -49,50 +65,8 @@
   </div>
   </div>
 </div>
-
-@section('moar_scripts')
-<script src="{{ asset('assets/js/bootstrap-table.js') }}"></script>
-<script src="{{ asset('assets/js/extensions/cookie/bootstrap-table-cookie.js') }}"></script>
-<script src="{{ asset('assets/js/extensions/mobile/bootstrap-table-mobile.js') }}"></script>
-<script src="{{ asset('assets/js/extensions/export/bootstrap-table-export.js') }}"></script>
-<script src="{{ asset('assets/js/extensions/export/tableExport.js') }}"></script>
-<script src="{{ asset('assets/js/extensions/export/jquery.base64.js') }}"></script>
-<script type="text/javascript">
-    $('#table').bootstrapTable({
-        classes: 'table table-responsive table-no-bordered',
-        undefinedText: '',
-        iconsPrefix: 'fa',
-        showRefresh: true,
-        search: true,
-        pageSize: {{ \App\Models\Setting::getSettings()->per_page }},
-        pagination: true,
-        sidePagination: 'server',
-        sortable: true,
-        cookie: true,
-        cookieExpire: '2y',
-        mobileResponsive: true,
-        showExport: true,
-        showColumns: true,
-        exportDataType: 'all',
-        exportTypes: ['csv', 'txt','json', 'xml'],
-        exportOptions: {
-            fileName: 'suppliers-export-' + (new Date()).toISOString().slice(0,10),
-        },
-        maintainSelected: true,
-        paginationFirstText: "{{ trans('general.first') }}",
-        paginationLastText: "{{ trans('general.last') }}",
-        paginationPreText: "{{ trans('general.previous') }}",
-        paginationNextText: "{{ trans('general.next') }}",
-        pageList: ['10','25','50','100','150','200'],
-        icons: {
-            paginationSwitchDown: 'fa-caret-square-o-down',
-            paginationSwitchUp: 'fa-caret-square-o-up',
-            columns: 'fa-columns',
-            refresh: 'fa-refresh'
-        },
-
-    });
-</script>
 @stop
 
+@section('moar_scripts')
+@include ('partials.bootstrap-table', ['exportFile' => 'suppliers-export', 'search' => true])
 @stop

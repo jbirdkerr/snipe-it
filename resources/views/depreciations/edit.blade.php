@@ -1,73 +1,40 @@
-@extends('layouts/default')
-
-{{-- Page title --}}
-@section('title')
-
-    @if ($depreciation->id)
-        {{ trans('admin/depreciations/general.update_depreciation') }}
-    @else
-        {{ trans('admin/depreciations/general.create_depreciation') }}
-    @endif
-
-@parent
-@stop
-
-@section('header_right')
-<a href="{{ URL::previous() }}" class="btn btn-primary pull-right">
-    {{ trans('general.back') }}</a>
-@stop
-
+@extends('layouts/edit-form', [
+    'createText' => trans('admin/depreciations/general.create') ,
+    'updateText' => trans('admin/depreciations/general.update'),
+    'helpPosition'  => 'right',
+    'helpText' => trans('help.depreciations'),
+    'formAction' => (isset($item->id)) ? route('depreciations.update', ['depreciation' => $item->id]) : route('depreciations.store'),
+])
 
 {{-- Page content --}}
-@section('content')
+@section('inputFields')
 
-<div class="row">
-  <div class="col-md-9">
-
-    <form class="form-horizontal" method="post" action="" autocomplete="off">
-    <!-- CSRF Token -->
-    <input type="hidden" name="_token" value="{{ csrf_token() }}" />
-
-    <div class="box box-default">
-      
-
-
-      <div class="box-body">
-        <!-- Name -->
-        <div class="form-group {{ $errors->has('name') ? ' has-error' : '' }}">
-            <label for="name" class="col-md-4 control-label">{{ trans('admin/depreciations/general.depreciation_name') }}
-             <i class='fa fa-asterisk'></i></label>
-             </label>
-                <div class="col-md-6">
-                    <input class="form-control" type="text" name="name" id="name" value="{{ Input::old('name', $depreciation->name) }}" />
-                    {!! $errors->first('name', '<span class="alert-msg"><i class="fa fa-times"></i> :message</span>') !!}
-                </div>
+@include ('partials.forms.edit.name', ['translated_name' => trans('admin/depreciations/general.depreciation_name')])
+<!-- Months -->
+<div class="form-group {{ $errors->has('months') ? ' has-error' : '' }}">
+    <label for="months" class="col-md-3 control-label">
+        {{ trans('admin/depreciations/general.number_of_months') }}
+    </label>
+    <div class="col-md-7 col-sm-12 {{  (Helper::checkIfRequired($item, 'months')) ? ' required' : '' }}">
+        <div class="col-md-7" style="padding-left:0px">
+            <input class="form-control" type="text" name="months" id="months" value="{{ old('months', $item->months) }}" style="width: 80px;"{!!  (\App\Helpers\Helper::checkIfRequired($item, 'months')) ? ' required' : '' !!} />
+            {!! $errors->first('months', '<span class="alert-msg" aria-hidden="true"><i class="fa fa-times" aria-hidden="true"></i> :message</span>') !!}
         </div>
-
-        <!-- Name -->
-        <div class="form-group {{ $errors->has('months') ? ' has-error' : '' }}">
-            <label for="months" class="col-md-4 control-label">{{ trans('admin/depreciations/general.number_of_months') }}
-             <i class='fa fa-asterisk'></i></label>
-             </label>
-                <div class="col-md-6">
-                    <input class="form-control" type="text" name="months" id="months" value="{{ Input::old('months', $depreciation->months) }}" style="width: 80px;" />
-                    {!! $errors->first('months', '<span class="alert-msg"><i class="fa fa-times"></i> :message</span>') !!}
-                </div>
-        </div>
-
-      </div>
-      <div class="box-footer text-right">
-          <button type="submit" class="btn btn-success"><i class="fa fa-check icon-white"></i> {{ trans('general.save') }}</button>
-      </div>
-	  </div>
-  </form>
-
-</div>
-<!-- side address column -->
-<div class="col-md-3">
-    <h4>{{ trans('admin/depreciations/general.about_asset_depreciations') }}</h4>
-    <p>{{ trans('admin/depreciations/general.about_depreciations') }} </p>
-</div>
+    </div>
 </div>
 
+<!-- Depreciation Minimum -->
+<div class="form-group {{ $errors->has('depreciation_min') ? ' has-error' : '' }}">
+    <label for="depreciation_min" class="col-md-3 control-label">
+        {{ trans('admin/depreciations/general.depreciation_min') }}
+    </label>
+    <div class="col-md-2" style="display: flex;">
+        <input class="form-control" name="depreciation_min" id="depreciation_min" value="{{ old('depreciation_min', $item->depreciation_min) }}" style="width: 80px; margin-right: 15px; display: inline-block;" />
+        <select class="form-control select2" name="depreciation_type" id="depreciation_type" data-minimum-results-for-search="Infinity" style="width: 150px; display: inline-block;">
+            <option value="amount" {{ old('depreciation_type', $item->depreciation_type) == 'amount' ? 'selected' : '' }}>Amount</option>
+            <option value="percent" {{ old('depreciation_type', $item->depreciation_type) == 'percent' ? 'selected' : '' }}>Percentage</option>
+        </select>
+    </div>
+    {!! $errors->first('depreciation_min', '<span class="col-md-7 col-md-offset-3 alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
+</div>
 @stop

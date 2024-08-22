@@ -2,26 +2,34 @@
 
 return array(
 
-    'does_not_exist' => 'Location does not exist.',
-    'assoc_users'	 => 'This location is currently associated with at least one user and cannot be deleted. Please update your users to no longer reference this location and try again. ',
-    'assoc_assets'	 => 'This location is currently associated with at least one asset and cannot be deleted. Please update your assets to no longer reference this location and try again. ',
-    'assoc_child_loc'	 => 'This location is currently the parent of at least one child location and cannot be deleted. Please update your locations to no longer reference this location and try again. ',
+    'does_not_exist' => 'Platsen finns inte.',
+    'assoc_users'    => 'This location is not currently deletable because it is the location of record for at least one asset or user, has assets assigned to it, or is the parent location of another location. Please update your models to no longer reference this location and try again. ',
+    'assoc_assets'	 => 'Platsen är associerad med minst en tillgång och kan inte tas bort. Vänligen uppdatera dina tillgångar så dom inte refererar till denna plats och försök igen. ',
+    'assoc_child_loc'	 => 'Denna plats är för närvarande överliggande för minst en annan plats och kan inte tas bort. Vänligen uppdatera dina platser så dom inte längre refererar till denna och försök igen.',
+    'assigned_assets' => 'Tilldelade tillgångar',
+    'current_location' => 'Nuvarande plats',
+    'open_map' => 'Open in :map_provider_icon Maps',
 
 
     'create' => array(
-        'error'   => 'Location was not created, please try again.',
-        'success' => 'Location created successfully.'
+        'error'   => 'Platsen kunde inte skapas. Vänligen försök igen.',
+        'success' => 'Platsen skapades.'
     ),
 
     'update' => array(
-        'error'   => 'Location was not updated, please try again',
-        'success' => 'Location updated successfully.'
+        'error'   => 'Platsen kunde inte uppdateras. Vänligen försök igen',
+        'success' => 'Platsen uppdaterades.'
+    ),
+
+    'restore' => array(
+        'error'   => 'Location was not restored, please try again',
+        'success' => 'Location restored successfully.'
     ),
 
     'delete' => array(
-        'confirm'   	=> 'Are you sure you wish to delete this location?',
-        'error'   => 'There was an issue deleting the location. Please try again.',
-        'success' => 'The location was deleted successfully.'
+        'confirm'   	=> 'Är du säker du vill ta bort denna plats?',
+        'error'   => 'Ett fel inträffade när denna plats skulle tas bort. Vänligen försök igen.',
+        'success' => 'Platsen har tagits bort.'
     )
 
 );

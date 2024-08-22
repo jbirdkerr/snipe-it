@@ -2,7 +2,8 @@
 
 namespace App\Providers;
 
-use Illuminate\Contracts\Events\Dispatcher as DispatcherContract;
+use App\Listeners\CheckoutableListener;
+use App\Listeners\LogListener;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
 class EventServiceProvider extends ServiceProvider
@@ -13,21 +14,22 @@ class EventServiceProvider extends ServiceProvider
      * @var array
      */
     protected $listen = [
-        'App\Events\SomeEvent' => [
-            'App\Listeners\EventListener',
+        'Illuminate\Auth\Events\Login' => [
+            \App\Listeners\LogSuccessfulLogin::class,
+        ],
+
+        'Illuminate\Auth\Events\Failed' => [
+            \App\Listeners\LogFailedLogin::class,
         ],
     ];
 
     /**
-     * Register any other events for your application.
+     * The subscriber classes to register.
      *
-     * @param  \Illuminate\Contracts\Events\Dispatcher  $events
-     * @return void
+     * @var array
      */
-    public function boot(DispatcherContract $events)
-    {
-        parent::boot($events);
-
-        //
-    }
+    protected $subscribe = [
+        LogListener::class,
+        CheckoutableListener::class,
+    ];
 }

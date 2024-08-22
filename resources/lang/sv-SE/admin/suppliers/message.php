@@ -2,23 +2,27 @@
 
 return array(
 
-    'does_not_exist' => 'Supplier does not exist.',
-    'assoc_users'	 => 'This supplier is currently associated with at least one model and cannot be deleted. Please update your models to no longer reference this supplier and try again. ',
+    'deleted' => 'Tog bort leverantör',
+    'does_not_exist' => 'Leverantören finns inte.',
+
 
     'create' => array(
-        'error'   => 'Supplier was not created, please try again.',
-        'success' => 'Supplier created successfully.'
+        'error'   => 'Leverantören skapades inte, var god försök igen.',
+        'success' => 'Leverantören skapades framgångsrikt.'
     ),
 
     'update' => array(
-        'error'   => 'Supplier was not updated, please try again',
-        'success' => 'Supplier updated successfully.'
+        'error'   => 'Leverantören uppdaterades inte, var god försök igen',
+        'success' => 'Leverantören uppdaterades framgångsrikt.'
     ),
 
     'delete' => array(
-        'confirm'   => 'Are you sure you wish to delete this supplier?',
-        'error'   => 'There was an issue deleting the supplier. Please try again.',
-        'success' => 'Supplier was deleted successfully.'
+        'confirm'   => 'Är du säker på att du vill radera denna leverantör?',
+        'error'   => 'Det uppstod ett problem med att ta bort leverantören. Var god försök igen.',
+        'success' => 'Leverantören har tagits bort.',
+        'assoc_assets'	 => 'Denna leverantör är för närvarande är associerad med: asset_count tillgång(ar) och kan inte tas bort. Vänligen uppdatera dina tillgångar för att inte längre referera denna leverantör och försök igen. ',
+        'assoc_licenses'	 => 'Denna leverantör är för närvarande är associerade med: licenses_count licenser (s) och kan inte tas bort. Vänligen uppdatera dina licenser för att inte längre referera denna leverantör och försök igen. ',
+        'assoc_maintenances'	 => 'Denna leverantör är för närvarande associerad med: asset_maintenances_count asset maintenances (s) och kan inte raderas. Var vänlig uppdatera dina tillgångsinrättningar för att inte längre referera till denna leverantör och försök igen. ',
     )
 
 );

@@ -1,24 +1,33 @@
 <?php
 
-return array(
+return [
 
-    'asset_tag'   	=> 'Asset Tag',
+    'asset_tag'   	=> 'Tag Aset',
     'asset_model'       => 'Model',
-    'book_value'  	=> 'Value',
-    'change' 		=> 'In/Out',
-    'checkout_date' => 'Checkout Date',
-    'checkoutto' 	=> 'Checked Out',
+    'assigned_to'   => 'Ditetapkan untuk',
+    'book_value'  	=> 'Current Value',
+    'change' 		=> 'Masuk/keluar',
+    'checkout_date' => 'Tanggal Check out',
+    'checkoutto' 	=> 'Memeriksa',
+    'components_cost' => 'Total Components Cost',
+    'current_value' => 'Current Value',
     'diff' 			=> 'Diff',
-    'dl_csv' 		=> 'Download CSV',
+    'dl_csv' 		=> 'Unduh CSV',
     'eol' 			=> 'EOL',
     'id'      		=> 'ID',
-    'location' 		=> 'Location',
-    'purchase_cost'	=> 'Cost',
-    'purchase_date'	=> 'Purchased',
+    'last_checkin_date' => 'Last Checkin Date',
+    'location' 		=> 'Lokasi',
+    'purchase_cost'	=> 'Biaya',
+    'purchase_date'	=> 'Dibeli',
     'serial'   		=> 'Serial',
     'status'   		=> 'Status',
-    'title'      	=> 'Asset ',
-    'image'		=> 'Device Image',
-    'days_without_acceptance' => 'Days Without Acceptance'
-
-);
+    'title'      	=> 'Aset ',
+    'image'		    => 'Perangkat Gambar',
+    'days_without_acceptance' => 'Hari tanpa penerimaan',
+    'monthly_depreciation' => 'Penyusutan Bulanan',
+    'assigned_to'    => 'Ditetapkan untuk',
+    'requesting_user' => 'Requesting User',
+    'requested_date' => 'Requested Date',
+    'changed'       => 'Changed',
+    'icon' => 'Icon',
+];

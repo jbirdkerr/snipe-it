@@ -2,41 +2,50 @@
 
 namespace App\Http\Middleware;
 
-use Closure;
-use Config;
-use Route;
-use Schema;
 use App\Models\Setting;
-
+use Closure;
+use \App\Helpers\Helper;
+use Illuminate\Support\Facades\Log;
 class CheckLocale
 {
-  /**
-   * Handle the locale for the user, default to settings otherwise
-   *
-   * @param  \Illuminate\Http\Request  $request
-   * @param  \Closure  $next
-   * @param  string|null  $guard
-   * @return mixed
-   */
-
+    private function warn_legacy_locale($language, $source)
+    {
+        if ($language != Helper::mapLegacyLocale($language)) {
+            Log::warning("$source $language and should be updated to be ".Helper::mapLegacyLocale($language));
+        }
+    }
+    /**
+     * Handle the locale for the user, default to settings otherwise.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @param \Closure                 $next
+     * @param string|null              $guard
+     *
+     * @return mixed
+     */
     public function handle($request, Closure $next, $guard = null)
     {
-        if (Schema::hasTable('settings')) {
+
+        // Default app settings from config
+        $language = config('app.locale');
+        $this->warn_legacy_locale($language, "APP_LOCALE in .env is set to");
+
+        if ($settings = Setting::getSettings()) {
+
             // User's preference
             if (($request->user()) && ($request->user()->locale)) {
-                \App::setLocale($request->user()->locale);
+                $language = $request->user()->locale;
+                $this->warn_legacy_locale($language, "username ".$request->user()->username." (".$request->user()->id.") has a language");
 
-                // App setting preference
-            } elseif ((Setting::getSettings()) &&  (Setting::getSettings()->locale!='')) {
-                \App::setLocale(Setting::getSettings()->locale);
-
-                // Default app setting
-            } else {
-                \App::setLocale(config('app.locale'));
+            // App setting preference
+            } elseif ($settings->locale != '') {
+                $language = $settings->locale;
+                $this->warn_legacy_locale($language, "App Settings is set to");
             }
-        }
-        \App::setLocale(config('app.locale'));
 
+        }
+        
+        app()->setLocale(Helper::mapLegacyLocale($language));
         return $next($request);
     }
 }
